@@ -1,5 +1,5 @@
 <library path="src">
-  <class name="NavigationView" type="rqt_nav_view.nav_view_plugin.NavViewPlugin" base_class_type="rqt_gui_py::Plugin">
+  <class name="KukaView" type="rqt_kuka_view.kuka_view_plugin.KukaViewPlugin" base_class_type="rqt_gui_py::Plugin">
     <description>
     Display for navigation.
     </description>

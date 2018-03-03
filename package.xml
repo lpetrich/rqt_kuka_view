@@ -1,16 +1,12 @@
 <package>
-  <name>rqt_nav_view</name>
-  <version>0.5.7</version>
-  <description>rqt_nav_view provides a gui for viewing navigation maps and paths.</description>
-  <maintainer email="ablasdel@gmail.com">Aaron Blasdel</maintainer>
+  <name>rqt_kuka_view</name>
+  <version>0.1.2</version>
+  <description>rqt_kuka_view provides a gui setting kuka trajectories.</description>
+  <maintainer email="llorrain@ualberta.com">Laura Petrich</maintainer>
 
   <license>BSD</license>
 
-  <url type="website">http://wiki.ros.org/rqt_nav_view</url>
-  <url type="repository">https://github.com/ros-visualization/rqt_nav_view</url>
-  <url type="bugtracker">https://github.com/ros-visualization/rqt_nav_view/issues</url>
-
-  <author>Ze'ev Klapow</author>
+  <author>Laura Petrich</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 

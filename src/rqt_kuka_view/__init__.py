@@ -1,3 +1,4 @@
+#######################################################################
 # Software License Agreement (BSD License)
 #
 # Copyright (c) 2012, Willow Garage, Inc.
@@ -29,5 +30,6 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+#######################################################################
 
-from .nav_view import NavViewWidget 
+from .kuka_view import KukaViewWidget 

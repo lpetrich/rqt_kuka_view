@@ -1,4 +1,4 @@
-nav_view
+kuka_view
 =============
 
-RQT plugin to display navigation information(maps/plans). 
+RQT plugin 
