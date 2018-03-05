@@ -59,11 +59,14 @@ class KukaViewPlugin(Plugin):
 
         # lauras computer -- kinect
         # self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        # fuego -- kinect
+        # fuego -- kinect task images
         self._subscriber = rospy.Subscriber('/camera/rgb/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        # for object learning
+        # for object learning fire wire
         self._subscriber2 = rospy.Subscriber('/cam1/camera/image_raw/compressed', CompressedImage, self._callback2, queue_size = 1)
-        self._subscriber3 = rospy.Subscriber('/learn_progress', String, self._callback3, queue_size = 1)
+        # for object detection
+        self._subscriber3 = rospy.Subscriber('/cam2/camera/image_raw/compressed', CompressedImage, self._callback3, queue_size = 1)
+        # for learning progress
+        self._subscriber4 = rospy.Subscriber('/learn_progress', String, self._callback4, queue_size = 1)
 
         # self._bridge = CvBridge()
         # setup kuka widget 
@@ -84,15 +87,14 @@ class KukaViewPlugin(Plugin):
     @Slot(str)
     def _publish_check(self):
         # check if ready to publish
-        path = self._widget.check_if_ready()
+        path = self._widget.check_if_path_ready()
         if path != None:
             self._publisher.publish(str(path))
 
     @Slot(str)
     def _publish_progress(self):
-        if self._widget.check_publish():
-            self.progress += 1
-            self._publisher2.publish(str(self.progress))
+        self.progress += 1
+        self._publisher2.publish(str(self.progress))
 
     def _unregister_publisher(self):
         if self._publisher is not None:
@@ -120,7 +122,15 @@ class KukaViewPlugin(Plugin):
         self._widget.check_learning(frame)
 
     @Slot(str)
-    def _callback3(self, data):
+    def _callback3(self, ros_data):
+        # check for new image frame and display
+        np_arr = np.fromstring(ros_data.data, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.check_detection(frame)
+
+    @Slot(str)
+    def _callback4(self, data):
         self._widget.show_progress(int(data.data))
 
     def save_settings(self, plugin_settings, instance_settings):
