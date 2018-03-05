@@ -55,11 +55,17 @@ class KukaViewPlugin(Plugin):
         self.setObjectName('Task Interface')
         # setup pubisher and subscriber
         self._publisher = rospy.Publisher('/chris/targetPoints_2D', String, queue_size=1000)
-        # lauras computer
+        self._publisher2 = rospy.Publisher('/learn_progress', String, queue_size=1)
+
+        # lauras computer -- kinect
         # self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        # fuego
+        # fuego -- kinect
         self._subscriber = rospy.Subscriber('/camera/rgb/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        self._bridge = CvBridge()
+        # for object learning
+        self._subscriber2 = rospy.Subscriber('/cam1/camera/image_raw/compressed', CompressedImage, self._callback2, queue_size = 1)
+        self._subscriber3 = rospy.Subscriber('/learn_progress', String, self._callback3, queue_size = 1)
+
+        # self._bridge = CvBridge()
         # setup kuka widget 
         self._widget = KukaViewWidget()
         self._widget.setWindowTitle(self._widget.windowTitle() + (' (%d)' % context.serial_number()))
@@ -69,12 +75,24 @@ class KukaViewPlugin(Plugin):
         self._update_parameter_timer.timeout.connect(self._publish_check)
         self._update_parameter_timer.start(100)
 
+        self._temp_timer = QTimer(self)
+        self._temp_timer.timeout.connect(self._publish_progress)
+        self._temp_timer.start(1000)
+
+        self.progress = 1
+
     @Slot(str)
     def _publish_check(self):
         # check if ready to publish
         path = self._widget.check_if_ready()
         if path != None:
-        	self._publisher.publish(str(path))
+            self._publisher.publish(str(path))
+
+    @Slot(str)
+    def _publish_progress(self):
+        if self._widget.check_publish():
+            self.progress += 1
+            self._publisher2.publish(str(self.progress))
 
     def _unregister_publisher(self):
         if self._publisher is not None:
@@ -91,7 +109,19 @@ class KukaViewPlugin(Plugin):
         np_arr = np.fromstring(ros_data.data, np.uint8)
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.image_display(frame)
+        self._widget.check_task(frame)
+
+    @Slot(str)
+    def _callback2(self, ros_data):
+        # check for new image frame and display
+        np_arr = np.fromstring(ros_data.data, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.check_learning(frame)
+
+    @Slot(str)
+    def _callback3(self, data):
+        self._widget.show_progress(int(data.data))
 
     def save_settings(self, plugin_settings, instance_settings):
         self._widget.save_settings(plugin_settings, instance_settings)

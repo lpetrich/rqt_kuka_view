@@ -51,6 +51,9 @@ class KukaViewWidget(QWidget):
         self.window_size = self.size()
         self.send_path = False
         self.calculate_area = False
+        # default is false
+        self.learn = False
+        self.name = 'learn new object'
         self.path = []
         # set up pen for drawing paths
         self.pen = QPen(Qt.red)
@@ -66,8 +69,12 @@ class KukaViewWidget(QWidget):
         self.layout = QVBoxLayout()
         self.button_layout = QHBoxLayout()
         self.image_layout = QHBoxLayout()
+        self.progress_layout = QHBoxLayout()
 
         self.video_label = QLabel()
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
 
         self.area_button = QPushButton('set area task')
         self.area_button.clicked.connect(self.area_task)
@@ -77,19 +84,28 @@ class KukaViewWidget(QWidget):
 
         self.move_button = QPushButton('send tasks')
         self.move_button.clicked.connect(self.send_tasks)
+
+        self.learning_button = QPushButton('learn new object')
+        self.learning_button.clicked.connect(self.enable_learning)
+
+        self.task_button = QPushButton('set new tasks')
+        self.task_button.clicked.connect(self.enable_tasks)
        
+        self.button_layout.addWidget(self.learning_button)
+        self.button_layout.addWidget(self.task_button)
         self.button_layout.addWidget(self.area_button)
         self.button_layout.addWidget(self.clear_button)
         self.button_layout.addWidget(self.move_button)
 
+        self.progress_layout.addWidget(self.progress_bar)
         self.image_layout.addWidget(self.video_label)
         self.layout.addLayout(self.button_layout)
         self.layout.addLayout(self.image_layout)
+        self.layout.addLayout(self.progress_layout)
 
         self.setLayout(self.layout)
 
-    def image_display(self, frame):
-        # display current frame with trajectory information
+    def image_task(self, frame):
         # frame = cv2.flip(frame, 1)
         image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
@@ -111,9 +127,43 @@ class KukaViewWidget(QWidget):
                     y_offset = ((self.window_size.height() - pixmap.size().height()) / 2) - 30
                     painter.drawLine(self.final_path[i][j][0], self.final_path[i][j][1] - y_offset, self.final_path[i][j + 1][0], self.final_path[i][j + 1][1] - y_offset)
                     painter.end()
-
         self.video_label.setPixmap(pixmap)
-  
+
+    def image_learning(self, frame):
+        # learning task enabled, switch view to firewire
+        # frame = cv2.flip(frame, 1)
+        image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(image)
+        pixmap = pixmap.scaledToWidth(self.window_size.width() - 30)
+        self.video_label.setPixmap(pixmap)
+
+    def show_progress(self, progress):
+        print 'progress: ', progress
+        self.progress_bar.setValue(progress)
+
+    def check_learning(self, image):
+        if self.learn:
+            self.image_learning(image)
+
+    def check_task(self, image):
+        if not self.learn:
+            self.image_task(image)
+
+    def check_publish(self):
+        if self.learn:
+            return True
+        else:
+            return False
+            
+    def enable_learning(self):
+        if not self.learn:
+            self.learn = True
+            self.progress_bar.reset()
+
+    def enable_tasks(self):
+        if self.learn:
+            self.learn = False
+
     def resizeEvent(self, QResizeEvent):
         # reset window_size and clear all paths
         self.window_size = self.size()
@@ -134,7 +184,6 @@ class KukaViewWidget(QWidget):
             area = calculate_trajectory(T)
             if area == None:
                 print 'Please select an area'
-                return
             else:
                 temp = []
                 for p in area:

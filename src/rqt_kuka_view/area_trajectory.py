@@ -102,6 +102,8 @@ def add_coords(trajectory, x_min, x_max, y_min, y_max, switch):
 		same_x = False
 	else:
 		print 'error, neither x nor y has the same values'
+	if offset == 0:
+		offset = 1
 	x = []
 	y = []
 	for i in range(x_min, x_max + 1, offset):
