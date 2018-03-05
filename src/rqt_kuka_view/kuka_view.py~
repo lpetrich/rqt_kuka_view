@@ -166,21 +166,15 @@ class KukaViewWidget(QWidget):
     def enable_learning(self):
         if not self.learn:
             self.learn = True
-	    self.detect = False
-	    self.task = False
             self.progress_bar.reset()
 
     def enable_detection(self):
         if not self.detect:
             self.detect = True
-	    self.learn = False
-	    self.task = False
 
     def enable_tasks(self):
         if not self.task:
             self.task = True
-	    self.learn = False
-	    self.detect = False
 # handle user input
     def clear_path(self):
         # reset all paths, stop publishing
