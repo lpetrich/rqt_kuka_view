@@ -33,20 +33,6 @@ def calculate_trajectory(parameter):
 	if (x_parameter[-1][0] - x_parameter[0][0]) < (y_parameter[-1][1] - y_parameter[0][1]):
 		# X is minimum side, move from y_min to y_max value on each pass
 		X = True
-	# 	for item in y_parameter[:-1]:
-	# 		if (item[1] - y_parameter[1][1]) < boundary_offset:
-	# 			skip += 1
-	# 		else:
-	# 			end = skip
-	# 			break
-	# else:
-	# 	for item in x_parameter[:-1]:
-	# 		if (item[0] - x_parameter[1][0]) < boundary_offset:
-	# 			skip += 1
-	# 		else:
-	# 			end = skip
-	# 			break
-
 	while not finished:
 		if end < len(y_parameter) or end < len(x_parameter):
 			if X:
@@ -104,18 +90,46 @@ def calculate_trajectory(parameter):
 		del x[:]
 		del y[:]
 		del section[:]
-
 	return trajectory
 
 def add_coords(trajectory, x_min, x_max, y_min, y_max, switch):
 	# Maybe need to add points inbetween min and max values to aid in path planning?
+	if x_min == x_max:
+		offset = (y_max - y_min) / 4
+		same_x = True
+	elif y_min == y_max:
+		offset = (x_max - x_min) / 4
+		same_x = False
+	else:
+		print 'error, neither x nor y has the same values'
+	x = []
+	y = []
+	for i in range(x_min, x_max + 1, offset):
+		x.append(i)
+		if i > (x_max - offset):
+			x.append(x_max)
+	for j in range(y_min, y_max + 1, offset):
+		y.append(j)
+		if j > (y_max - offset):
+			y.append(y_max)
 	if switch:
-		trajectory.append((x_min, y_min))
-		trajectory.append((x_max, y_max))
 		switch = False
 	else:
-		trajectory.append((x_max, y_max))
-		trajectory.append((x_min, y_min))
+		x.reverse()
+		y.reverse()
 		switch = True
+	print 'x: (min, max) ', x_min, x_max
+	print 'y: (min, max) ', y_min, y_max
+	print 'x: ', x
+	print 'y: ', y
+	if same_x:
+		for i in range(len(y)):
+			trajectory.append((x[0], y[i]))
+	elif not same_x:
+		for j in range(len(x)):
+			trajectory.append((x[j], y[0]))
+	else:
+		print 'error, neither x nor y has the same values'
 	trajectory.append(None)
+	print trajectory
 	return trajectory, switch
