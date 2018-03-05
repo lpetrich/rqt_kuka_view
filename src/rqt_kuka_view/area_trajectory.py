@@ -110,12 +110,12 @@ def calculate_trajectory(parameter):
 def add_coords(trajectory, x_min, x_max, y_min, y_max, switch):
 	# Maybe need to add points inbetween min and max values to aid in path planning?
 	if switch:
-		trajectory.append([x_min, y_min])
-		trajectory.append([x_max, y_max])
+		trajectory.append((x_min, y_min))
+		trajectory.append((x_max, y_max))
 		switch = False
 	else:
-		trajectory.append([x_max, y_max])
-		trajectory.append([x_min, y_min])
+		trajectory.append((x_max, y_max))
+		trajectory.append((x_min, y_min))
 		switch = True
 	trajectory.append(None)
 	return trajectory, switch

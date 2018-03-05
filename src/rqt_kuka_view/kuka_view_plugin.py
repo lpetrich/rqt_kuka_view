@@ -40,11 +40,12 @@
 from .kuka_view import KukaViewWidget
 from qt_gui.plugin import Plugin
 from std_msgs.msg import String
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from qt_gui_py_common.worker_thread import WorkerThread
 from python_qt_binding.QtCore import Qt, QTimer, Slot
 from cv_bridge import CvBridge, CvBridgeError
-import rospy
+import rospy, cv2
+import numpy as np
 
 class KukaViewPlugin(Plugin):
     def __init__(self, context):
@@ -53,8 +54,9 @@ class KukaViewPlugin(Plugin):
             raise RuntimeError("You may not run more than one instance of kuka_view.")
         self.setObjectName('Task Interface')
         # setup pubisher and subscriber
-        self._publisher = rospy.Publisher('trajectory', String, queue_size=100)
-        self._subscriber = rospy.Subscriber('/usb_cam/image_raw', Image, self._callback, queue_size = 1)
+        self._publisher = rospy.Publisher('/chris/targetPoints_2D', String, queue_size=1000)
+        self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
+        # self._subscriber = rospy.Subscriber('/camera/rgb/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
         self._bridge = CvBridge()
         # setup kuka widget 
         self._widget = KukaViewWidget()
@@ -67,9 +69,10 @@ class KukaViewPlugin(Plugin):
 
     @Slot(str)
     def _publish_check(self):
+        # check if ready to publish
         path = self._widget.check_if_ready()
         if path != None:
-            self._publisher.publish(str(path))
+        	self._publisher.publish(str(path))
 
     def _unregister_publisher(self):
         if self._publisher is not None:
@@ -81,12 +84,12 @@ class KukaViewPlugin(Plugin):
         self._unregister_publisher()
 
     @Slot(str)
-    def _callback(self, data):
-        try:
-            frame = self._bridge.imgmsg_to_cv2(data, "bgr8")
-            self._widget.image_display(frame)
-        except CvBridgeError as e:
-            print(e)
+    def _callback(self, ros_data):
+        # check for new image frame and display
+        np_arr = np.fromstring(ros_data.data, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.image_display(frame)
 
     def save_settings(self, plugin_settings, instance_settings):
         self._widget.save_settings(plugin_settings, instance_settings)

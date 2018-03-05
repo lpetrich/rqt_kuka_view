@@ -35,33 +35,34 @@
 import rospy, subprocess, sys, cv2
 import numpy as np
 from std_msgs.msg import String
+from geometry_msgs.msg import Point
 from python_qt_binding.QtCore import *
 from python_qt_binding.QtGui import *
 from python_qt_binding.QtWidgets import *
 from .area_trajectory import calculate_trajectory
 
 class KukaViewWidget(QWidget):
-
+    # initialize widget
     def __init__(self):
         super(KukaViewWidget, self).__init__()
-
         self.setWindowTitle('Task Interface')
+        # set global variables
+        self.final_path = []
         self.window_size = self.size()
         self.send_path = False
         self.calculate_area = False
         self.path = []
-        self.counter = 0
-        self.capture = None
-
+        # set up pen for drawing paths
         self.pen = QPen(Qt.red)
         self.pen.setWidth(8)
         self.pen.setCapStyle(Qt.RoundCap)
         self.pen.setJoinStyle(Qt.RoundJoin)
-
+        # set up user interface
         self.setup_ui()
 
 
     def setup_ui(self):
+        # set up user interface
         self.layout = QVBoxLayout()
         self.button_layout = QHBoxLayout()
         self.image_layout = QHBoxLayout()
@@ -75,7 +76,7 @@ class KukaViewWidget(QWidget):
         self.clear_button.clicked.connect(self.clear_path)
 
         self.move_button = QPushButton('send tasks')
-        self.move_button.clicked.connect(self.move_along_path)
+        self.move_button.clicked.connect(self.send_tasks)
        
         self.button_layout.addWidget(self.area_button)
         self.button_layout.addWidget(self.clear_button)
@@ -87,66 +88,103 @@ class KukaViewWidget(QWidget):
 
         self.setLayout(self.layout)
 
-
     def image_display(self, frame):
+        # display current frame with trajectory information
         frame = cv2.flip(frame, 1)
         image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
         pixmap = pixmap.scaledToWidth(self.window_size.width() - 30)
+        # draw while moving
         if self.path:
-            for i in range(len(self.path) - 2):
-                if self.path[i] == None or self.path[i + 1] == None:
-                    continue
-                else:
+            for i in range(len(self.path) - 1):
+                painter = QPainter(pixmap)
+                painter.setPen(self.pen)
+                y_offset = ((self.window_size.height() - pixmap.size().height()) / 2) - 30
+                painter.drawLine(self.path[i][0], self.path[i][1] - y_offset, self.path[i + 1][0], self.path[i + 1][1] - y_offset)
+                painter.end()
+        # draw all paths
+        if self.final_path:
+            for i in range(len(self.final_path)):
+                for j in range(len(self.final_path[i]) - 1):
                     painter = QPainter(pixmap)
                     painter.setPen(self.pen)
                     y_offset = ((self.window_size.height() - pixmap.size().height()) / 2) - 30
-                    painter.drawLine(self.path[i][0], self.path[i][1] - y_offset, self.path[i + 1][0], self.path[i + 1][1] - y_offset)
+                    painter.drawLine(self.final_path[i][j][0], self.final_path[i][j][1] - y_offset, self.final_path[i][j + 1][0], self.final_path[i][j + 1][1] - y_offset)
                     painter.end()
+
         self.video_label.setPixmap(pixmap)
   
     def resizeEvent(self, QResizeEvent):
+        # reset window_size and clear all paths
         self.window_size = self.size()
+        self.clear_path()
 
     def mouseMoveEvent(self, QMouseEvent):
+        # grab users path and append if path is not to be sent
         if not self.send_path:
+            # map global position to local image
             pos = self.video_label.mapFromGlobal(QMouseEvent.globalPos())
-            if self.calculate_area:
-                self.counter += 1
-            self.path.append([pos.x(), pos.y()])
+            self.path.append((pos.x(), pos.y()))
     
     def mouseReleaseEvent(self, QMouseEvent):
+        T = self.path[:]
+        del self.path[:]
+        # calculate area if needed
         if self.calculate_area:
-            print self.path
-            area = calculate_trajectory(self.path[-self.counter or None:])
+            area = calculate_trajectory(T)
             if area == None:
                 print 'Please select an area'
                 return
             else:
-                self.path = self.path[:-self.counter or None]
+                temp = []
                 for p in area:
-                    self.path.append(p)
+                    if p != None:
+                        temp.append(p)
+                    else:
+                        self.final_path.append(temp)
                 self.calculate_area = False
-                self.counter = 0
         else:
-            self.path.append(None)
+            self.final_path.append(T)
 
-    def move_along_path(self):
+    def send_tasks(self):
+        # publish path to topic /trajectory
         self.send_path = True
 
+    def string_converter(self, vector):
+        # convert vector into string for publishing
+        all_paths = ''
+        num = len(vector)
+        for i in range(num):
+            path = ''
+            num2 = len(vector[i])
+            if num2 != 0:
+                for j in range(num2):
+                    if j == (num2 - 1):
+                        path += str(vector[i][j][0]) + ' ' + str(vector[i][j][1])
+                    else:
+                        path += str(vector[i][j][0]) + ' ' + str(vector[i][j][1]) + ' '
+                if i == (num - 1):
+                    all_paths += path
+                else:
+                    all_paths += path + ';'
+        return all_paths
+
     def check_if_ready(self):
+        # check if ready to publish topic
         if self.send_path:
-            return self.path
+            all_paths = self.string_converter(self.final_path[:])
+            return all_paths
         else:
             return None
     
     def clear_path(self):
-        del self.path[:]
+        # reset all paths, stop publishing
+        del self.final_path[:]
         self.send_path = False
 
     def area_task(self):
+        # set area task
         self.calculate_area = True
-        self.send_path = False
 
     def save_settings(self, plugin_settings, instance_settings):
         # self._nav_view.save_settings(plugin_settings, instance_settings)
