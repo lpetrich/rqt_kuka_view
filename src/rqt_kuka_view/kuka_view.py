@@ -90,7 +90,7 @@ class KukaViewWidget(QWidget):
 
     def image_display(self, frame):
         # display current frame with trajectory information
-        frame = cv2.flip(frame, 1)
+        # frame = cv2.flip(frame, 1)
         image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
         pixmap = pixmap.scaledToWidth(self.window_size.width() - 30)

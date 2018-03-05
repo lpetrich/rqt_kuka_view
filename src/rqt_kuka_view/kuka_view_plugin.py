@@ -55,8 +55,10 @@ class KukaViewPlugin(Plugin):
         self.setObjectName('Task Interface')
         # setup pubisher and subscriber
         self._publisher = rospy.Publisher('/chris/targetPoints_2D', String, queue_size=1000)
-        self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        # self._subscriber = rospy.Subscriber('/camera/rgb/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
+        # lauras computer
+        # self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
+        # fuego
+        self._subscriber = rospy.Subscriber('/camera/rgb/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
         self._bridge = CvBridge()
         # setup kuka widget 
         self._widget = KukaViewWidget()

@@ -1,11 +1,12 @@
 <launch>
 
     <!-- Uncomment if using usb camera -->
+    <!--
     <node pkg="usb_cam" type="usb_cam_node" name="camera">
         <param name="video_device" value="/dev/video0" />
         <param name="framerate" value="15" />   
     </node>
-    
+    -->
     <!-- Uncomment if using firewire camera -->  
     <!-- 
     <node pkg="camera1394" type="camera1394_node" name="cam1" clear_params="true">
@@ -44,8 +45,10 @@
     -->
 
     <node pkg="rqt_kuka_view" type="rqt_kuka_view" name="interface" output="screen"/>  
+    <!--
     <node pkg="signature_visualization" type="signature_vis" name="signature_vis"/>  
     <node pkg="normal_surface_calc" type="normal_surface_calc" name="normal_surface_calc"/>  
+    -->
 
 </launch>
 
