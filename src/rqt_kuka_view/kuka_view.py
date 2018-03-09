@@ -194,6 +194,20 @@ class KukaViewWidget(QWidget):
     def send_tasks(self):
         # publish path to topic /trajectory
         self.send_path = True
+        # print self.final_path
+
+    def map_path(self, vector):
+        num = len(vector)
+        mapped = []
+        for i in range(num):
+            temp = []
+            for j in range(len(vector[i])):
+                u = (float(vector[i][j][0]) / 960) * 650
+                v = (float(vector[i][j][1]) / 540) * 366            
+                temp.append((int(u), int(v)))
+            print temp
+            mapped.append(temp)
+        return mapped
 
     def string_converter(self, vector):
         # convert vector into string for publishing
@@ -217,8 +231,12 @@ class KukaViewWidget(QWidget):
     def check_if_path_ready(self):
         # check if ready to publish 
         if self.send_path:
-            all_paths = self.string_converter(self.final_path[:])
-            return all_paths
+            tmp = self.final_path[:]
+            # print 'before mapping: ', tmp
+            mapped_path = self.map_path(tmp)
+            all_paths = self.string_converter(mapped_path)
+            # print 'mapped: ', all_paths
+            # return all_paths
         else:
             return None
 
