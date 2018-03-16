@@ -126,10 +126,10 @@ def add_coords(trajectory, x_min, x_max, y_min, y_max, switch):
 	print 'y: ', y
 	if same_x:
 		for i in range(len(y)):
-			trajectory.append((x[0], y[i]))
+			trajectory.append([x[0], y[i]])
 	elif not same_x:
 		for j in range(len(x)):
-			trajectory.append((x[j], y[0]))
+			trajectory.append([x[j], y[0]])
 	else:
 		print 'error, neither x nor y has the same values'
 	trajectory.append(None)

@@ -39,10 +39,13 @@
 
 from .kuka_view import KukaViewWidget
 from qt_gui.plugin import Plugin
-from std_msgs.msg import String
-from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import String, Bool
+from sensor_msgs.msg import CompressedImage, Image
 from qt_gui_py_common.worker_thread import WorkerThread
 from python_qt_binding.QtCore import Qt, QTimer
+#
+from python_qt_binding.QtGui import *
+#
 from cv_bridge import CvBridge, CvBridgeError
 import rospy, cv2
 import numpy as np
@@ -57,22 +60,51 @@ class KukaViewPlugin(Plugin):
         self._publisher = rospy.Publisher('/chris/targetPoints_2D', String, queue_size=1000)
         # self._publisher2 = rospy.Publisher('/learn_progress', String, queue_size=1)
 
-        # lauras computer -- kinect
-        # self._subscriber = rospy.Subscriber('/camera/image_raw/compressed', CompressedImage, self._callback, queue_size = 1)
-        # fuego -- kinect task images
-        self._subscriber = rospy.Subscriber('/kinect2/qhd/image_color/compressed', CompressedImage, self._callback, queue_size = 1)
+        # task images
+        self._subscriber = rospy.Subscriber('/camera/rgb/image_rect_color/compressed', CompressedImage, self._callback, queue_size = 1)
         # for object learning fire wire
-        self._subscriber2 = rospy.Subscriber('/cam1/camera/image_raw/compressed', CompressedImage, self._callback2, queue_size = 1)
+        self._subscriber2 = rospy.Subscriber('/cam1/camera/image_raw/compressed',  CompressedImage, self._callback2, queue_size = 1)
         # for object detection
-        self._subscriber3 = rospy.Subscriber('/cam1/camera/image_raw/compressed', CompressedImage, self._callback3, queue_size = 1)
+        self._subscriber3 = rospy.Subscriber('/kinect2/hd/image_color_rect/compressed', CompressedImage, self._callback3, queue_size = 1)
+        # subscriber for cropped images
+        self._subscriber5 = rospy.Subscriber('/crop', Image, self._callback5)
+        self._subscriber6 = rospy.Subscriber('/map', Image, self._callback6,  queue_size = 1)
+
+        # for starting the learning process
+        self._pub_learn = rospy.Publisher('/command_learn', String, queue_size=1000)
+
+
+        # for initiating different modules
+        self._pub_init = rospy.Publisher('/command_init', String, queue_size=1000)
+
+
         # for learning progress
         # self._subscriber4 = rospy.Subscriber('/learn_progress', String, self._callback4, queue_size = 1)
 
-        # self._bridge = CvBridge()
-        # setup kuka widget 
+        self._subscriber_learn_progress = rospy.Subscriber('/learning_progress', String, self._callback_progress, queue_size = 1)
+
+        # opencv stuff
+        self._bridge = CvBridge()
+
+        # setup kuka widget
+        #dw = QDesktopWidget()
+        #x = dw.width()*.8
+        #y = dw.height()*.8
+        #self._widget = KukaViewWidget(self._pub_learn, self._pub_init)
         self._widget = KukaViewWidget()
-        self._widget.setWindowTitle(self._widget.windowTitle() + (' (%d)' % context.serial_number()))
+        #screenSize = QDesktopWidget().availableGeometry()
+        screenSize = self._widget.geometry()
+        x = screenSize.width()
+        y = screenSize.height()
+        self._widget.setWindowTitle(self._widget.windowTitle() + (' (%d)' % context.serial_number())) # set the title
+        # This part is for adjusting the window size
+        #self._widget.setFixedSize(x,y) # change the default size
+        #self._widget.setWindowFlags(Qt.FramelessWindowHint) # hide title bar
+        self._widget.setPublisherLearn(self._pub_learn)
+        self._widget.setPublisherInit(self._pub_init)
+
         context.add_widget(self._widget)
+
         # set to check if path is ready to publish incrementally
         self._update_parameter_timer = QTimer(self)
         self._update_parameter_timer.timeout.connect(self._publish_check)
@@ -83,6 +115,7 @@ class KukaViewPlugin(Plugin):
         # self._temp_timer.start(1000)
 
         self.progress = 1
+        self._widget.init_modules()
 
     def _publish_check(self):
         # check if ready to publish
@@ -124,6 +157,27 @@ class KukaViewPlugin(Plugin):
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self._widget.check_detection(frame)
+
+    def _callback5(self, ros_data):
+        # check for new image frame and display
+        #np_arr = np.fromstring(ros_data.data, np.uint8)
+        #frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.show_crop(frame)
+
+    def _callback6(self, ros_data):
+        # check for new image frame and display
+        #np_arr = np.fromstring(ros_data.data, np.uint8)
+        #frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.show_heatmap(frame)
+
+
+    def _callback_progress(self, ros_data):
+        self._widget.show_progress(int(ros_data.data))
+
 
     def _callback4(self, data):
         self._widget.show_progress(int(data.data))
