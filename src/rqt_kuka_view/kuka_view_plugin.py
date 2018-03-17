@@ -69,9 +69,15 @@ class KukaViewPlugin(Plugin):
         # subscriber for cropped images
         self._subscriber5 = rospy.Subscriber('/crop', Image, self._callback5)
         self._subscriber6 = rospy.Subscriber('/map', Image, self._callback6,  queue_size = 1)
+        self._subscriber7 = rospy.Subscriber('/cl_image', Image, self._callback7,  queue_size = 1)
+        self._subscriber8 = rospy.Subscriber('/imgnet_image', Image, self._callback8,  queue_size = 1)
 
-        # for starting the learning process
+        # for starting/ending the learning process
         self._pub_learn = rospy.Publisher('/command_learn', String, queue_size=1000)
+        # for starting/ending the detection process
+        self._pub_det = rospy.Publisher('/command_det', String, queue_size=1000)
+        # for starting/ending the task process
+        self._pub_task = rospy.Publisher('/command_task', String, queue_size=1000)
 
 
         # for initiating different modules
@@ -82,6 +88,8 @@ class KukaViewPlugin(Plugin):
         # self._subscriber4 = rospy.Subscriber('/learn_progress', String, self._callback4, queue_size = 1)
 
         self._subscriber_learn_progress = rospy.Subscriber('/learning_progress', String, self._callback_progress, queue_size = 1)
+
+        self._subscriber_feat_progress = rospy.Subscriber('/feature_progress', String, self._callback_feat_progress, queue_size = 1)
 
         # opencv stuff
         self._bridge = CvBridge()
@@ -102,6 +110,8 @@ class KukaViewPlugin(Plugin):
         #self._widget.setWindowFlags(Qt.FramelessWindowHint) # hide title bar
         self._widget.setPublisherLearn(self._pub_learn)
         self._widget.setPublisherInit(self._pub_init)
+        self._widget.setPublisherDet(self._pub_det)
+        self._widget.setPublisherTask(self._pub_task)
 
         context.add_widget(self._widget)
 
@@ -174,9 +184,24 @@ class KukaViewPlugin(Plugin):
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self._widget.show_heatmap(frame)
 
+    def _callback7(self, ros_data):
+        # check for new image frame and display
+        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.show_det_after(frame)
+
+    def _callback8(self, ros_data):
+        # check for new image frame and display
+        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self._widget.show_det_before(frame)
+
 
     def _callback_progress(self, ros_data):
         self._widget.show_progress(int(ros_data.data))
+
+    def _callback_feat_progress(self, ros_data):
+        self._widget.show_feat_progress(ros_data.data)
 
 
     def _callback4(self, data):

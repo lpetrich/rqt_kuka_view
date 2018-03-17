@@ -44,8 +44,9 @@ from .area_trajectory import calculate_trajectory
 
 DEFAULT_NAME = "tool"
 HEIGHT = 180
+HEIGHT_DET = 300
 WIDTH = 300
-MAX_IMG = 100
+MAX_IMG = 20
 
 class KukaViewWidget(QWidget):
     # initialize widget
@@ -66,16 +67,20 @@ class KukaViewWidget(QWidget):
 	self.offset = [0,0]
         # default camera view is for learning
         # if you want to change set the default to True and others to False
+        ##### Three stages
         self.learn = True
         self.detect = False
         self.task = False
+        #####
         self.start_learn = False # start/stop learning an object
+        self.start_detect = False # start/stop detection, not used for now
         # set up pen for drawing paths
         self.pen = QPen(Qt.red)
         self.pen.setWidth(8)
         self.pen.setCapStyle(Qt.RoundCap)
         self.pen.setJoinStyle(Qt.RoundJoin)
         # set up user interface
+        self.init = True
         self.setup_ui()
         self.num_objs = 0 # count the number of objects learned
         self.start_show_crop = True # whether to show cropped image
@@ -83,6 +88,14 @@ class KukaViewWidget(QWidget):
     def setPublisherLearn(self, pub):
         """ set the publisher """
         self._pub_learn = pub
+
+    def setPublisherDet(self, pub):
+        """ set the publisher """
+        self._pub_det = pub
+
+    def setPublisherTask(self, pub):
+        """ set the publisher """
+        self._pub_task = pub
 
     def setPublisherInit(self, pub):
         """ set the publisher for initing """
@@ -93,8 +106,8 @@ class KukaViewWidget(QWidget):
         if self.start_learn:
             # if already learning, stop learning
             self.start_learn = False
-            self.learning_button.setStyleSheet("background-color: lime")
-            self.learning_button.setText("Stopped")
+            #self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            #self.learning_button.setText("Stopped")
             # publish a ROS message to stop the learning code
             self._pub_learn.publish("stop")
         else:
@@ -106,8 +119,8 @@ class KukaViewWidget(QWidget):
             else:
                 self.objname = self.objname_txt.text()
             self.start_learn = True
-            self.learning_button.setStyleSheet("background-color: red")
-            self.learning_button.setText("Learning 00/100")
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            self.learning_button.setText("Learning 00%")
             # publish a ROS message to start the learning code
             # message is the name of the class
             self._pub_learn.publish("start:"+self.objname+":"+str(self.num_objs))
@@ -115,57 +128,110 @@ class KukaViewWidget(QWidget):
             # start showing the cropped images
             #self.start_show_crop = True
 
+    def delete_obj(self):
+        if self.learn:
+            if not self.objname_txt.text():
+                self.objname_txt.setPlaceholderText('Please enter a valid name!')
+            else:
+                self.objname = self.objname_txt.text()
+                self._pub_learn.publish("delete:"+self.objname)
+                self.num_objs -= 1
+
+    def flip_detection(self):
+        """ Set the state of the button for detction  """
+        if self.start_detect:
+            # if already learning, stop learning
+            self.start_detect = False
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            self.learning_button.setText("Stopped")
+            # publish a ROS message to stop the detection code
+            self._pub_det.publish("stop")
+        else:
+            # if already stopped learning, start learning
+            self.start_detect = True
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            self.learning_button.setText("Detecting")
+            # publish a ROS message to start the learning code
+            # message is the name of the class
+            self._pub_det.publish("start")
+
     def done_learning(self):
         """ conclude the learning stage """
         if self.next_button.text() == 'DONE':
             self.next_button.setText('Confirm?')
         elif self.next_button.text() == 'Confirm?':
             self._pub_learn.publish("end")
+            self.next_button.setText('Ending...')
+
+    def done_detection(self):
+        """ conclude the detection stage """
+        if self.next_button.text() == 'DONE':
+            self.next_button.setText('Confirm?')
+        elif self.next_button.text() == 'Confirm?':
+            self._pub_det.publish("end")
             self.next_button.setText('Ending')
-            self.enable_detection()
+            self.enable_tasks()
+
+    def setup_ui_task(self):
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+    def dummy(self):
+        for i in range(10):
+            print("AWESOME")
 
     def setup_ui_detect(self):
         """ set up user interface for the detect phase """
-        if self.layout is not None:
-            print("Deleting layout")
-            del self.layout
+        if not self.init:
+            print("Re-setup layout")
+            # Reconnect the signal
+            self.learning_button.setText('Loading detection')
+            self.learning_button.clicked.disconnect()
+            self.learning_button.clicked.connect(self.flip_detection)
 
-        self.layout = QVBoxLayout()
-        # group the buttons for different views
-        #self.button_layout = QHBoxLayout()
-        self.image_layout = QHBoxLayout()
-        #self.sub_img_layout = QVBoxLayout() # for the two small images
+            self.next_button.setText('DONE')
+            self.next_button.clicked.disconnect()
+            self.next_button.clicked.connect(self.done_detection)
+            self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
 
-        #self.video_label = QLabel()
-        #self.video_label2 = QLabel() # for the second view for the cropped object
-        #self.video_label3 = QLabel() # for the third view for the heat map
+            self.objname_txt.setPlaceholderText('')
 
-        #self.learning_button = QPushButton('Start learning')
-        #self.learning_button.clicked.connect(self.flip_learning)
-        #self.learning_button.setStyleSheet("background-color: lime")
+        else:
+            print("Initing the layout for detection")
+            self.init = False
+            self.layout = QVBoxLayout()
+            # group the buttons for different views
+            self.button_layout = QHBoxLayout()
+            self.image_layout = QHBoxLayout()
+            self.sub_img_layout = QVBoxLayout() # for the two small images
 
-        #self.next_button = QPushButton('DONE')
-        #self.next_button.clicked.connect(self.done_learning)
-        #self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
+            self.video_label = QLabel()
+            self.video_label2 = QLabel() # for the second view for the cropped object
+            self.video_label3 = QLabel() # for the third view for the heat map
 
-        #self.objname_txt = QLineEdit()
-        #self.objname_txt.setPlaceholderText('Please enter the name of object')
-        #self.objname_txt.setFocus()
+            self.learning_button = QPushButton('Start detection')
+            self.learning_button.clicked.connect(self.dummy)
+            self.learning_button.setStyleSheet("background-color: lime")
 
-        #self.progress_layout.addWidget(self.progress_bar)
-        #self.image_layout.addWidget(self.video_label)
-        #self.sub_img_layout.addWidget(self.video_label2)
-        #self.sub_img_layout.addWidget(self.video_label3)
-        #self.button_layout.addWidget(self.objname_txt)
-        #self.button_layout.addWidget(self.learning_button)
-        #self.button_layout.addWidget(self.next_button)
-        #self.layout.addLayout(self.button_layout)
-        #self.image_layout.addLayout(self.sub_img_layout)
-        self.layout.addLayout(self.image_layout)
+            #self.next_button = QPushButton('DONE')
+            #self.next_button.clicked.connect(self.done_learning)
+            #self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
 
-        #self.layout.removeItem(self.sub_img_layout)
-        #self.layout.removeItem(self.button_layout)
-        self.setLayout(self.layout)
+            #self.objname_txt = QLineEdit()
+            #self.objname_txt.setPlaceholderText('Please enter the name of object')
+            #self.objname_txt.setFocus()
+
+            self.image_layout.addWidget(self.video_label)
+            #self.sub_img_layout.addWidget(self.video_label2)
+            #self.sub_img_layout.addWidget(self.video_label3)
+            #self.button_layout.addWidget(self.objname_txt)
+            self.button_layout.addWidget(self.learning_button)
+            #self.button_layout.addWidget(self.next_button)
+            self.layout.addLayout(self.button_layout)
+            #self.image_layout.addLayout(self.sub_img_layout)
+            self.layout.addLayout(self.image_layout)
+
+            self.setLayout(self.layout)
 
     def setup_ui_learn(self):
         """ set up user interface for the learning phase """
@@ -174,7 +240,6 @@ class KukaViewWidget(QWidget):
         self.button_layout = QHBoxLayout()
         self.image_layout = QHBoxLayout()
         self.sub_img_layout = QVBoxLayout() # for the two small images
-        #self.progress_layout = QHBoxLayout()
 
         self.video_label = QLabel()
         self.video_label2 = QLabel() # for the second view for the cropped object
@@ -182,34 +247,42 @@ class KukaViewWidget(QWidget):
 
         self.learning_button = QPushButton('Start learning')
         self.learning_button.clicked.connect(self.flip_learning)
-        self.learning_button.setStyleSheet("background-color: lime")
+        self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
 
         self.next_button = QPushButton('DONE')
         self.next_button.clicked.connect(self.done_learning)
         self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
 
+        self.del_button = QPushButton('DELETE')
+        self.del_button.clicked.connect(self.delete_obj)
+        self.del_button.setStyleSheet("background-color: rgba(0,255,255,50%)")
+
         self.objname_txt = QLineEdit()
         self.objname_txt.setPlaceholderText('Please enter the name of object')
-        self.objname_txt.setFocus();
+        self.objname_txt.setFocus()
 
-        #self.progress_layout.addWidget(self.progress_bar)
         self.image_layout.addWidget(self.video_label)
         self.sub_img_layout.addWidget(self.video_label2)
         self.sub_img_layout.addWidget(self.video_label3)
         self.button_layout.addWidget(self.objname_txt)
         self.button_layout.addWidget(self.learning_button)
         self.button_layout.addWidget(self.next_button)
+        self.button_layout.addWidget(self.del_button)
         self.layout.addLayout(self.button_layout)
         self.image_layout.addLayout(self.sub_img_layout)
         self.layout.addLayout(self.image_layout)
 
         self.setLayout(self.layout)
+        ## the following is on the very first module anymore
+        self.init = False
 
     def setup_ui(self):
         if self.learn:
             self.setup_ui_learn()
         elif self.detect:
             self.setup_ui_detect()
+        elif self.task:
+            self.setup_ui_task()
 
     def init_modules(self):
         if self.learn:
@@ -218,6 +291,7 @@ class KukaViewWidget(QWidget):
             self.enable_detection()
 
     def setup_ui_original(self):
+        """ The original (old) function for all the UI components"""
         # set up user interface
         self.layout = QVBoxLayout()
         # group the buttons for different views
@@ -275,13 +349,12 @@ class KukaViewWidget(QWidget):
         pixmap = pixmap.scaledToWidth(self.video_label.width())
         self.video_label.setPixmap(pixmap)
 
-        # init the cropped image and the heatmap
-        #width = 200
-        #height = 200
-        #pixmap = QPixmap(width, height)
-        #pixmap.fill(Qt.transparent)
-        #self.video_label2.setPixmap(pixmap)
-        #self.video_label3.setPixmap(pixmap)
+    def clear_pixmap(self):
+        """ clear the cropped image and the heatmap """
+        pixmap = QPixmap(WIDTH, HEIGHT_DET)
+        pixmap.fill(Qt.transparent)
+        self.video_label2.setPixmap(pixmap)
+        self.video_label3.setPixmap(pixmap)
 
     def show_crop(self, frame):
         """ This is to show the cropped view of the object """
@@ -301,6 +374,24 @@ class KukaViewWidget(QWidget):
             pixmap = QPixmap.fromImage(image)
             #pixmap = pixmap.scaledToWidth(self.video_label3.width())
             self.video_label2.setPixmap(pixmap)
+
+    def show_det_before(self, frame):
+        """ This is to show the imgnet detection of the object """
+        if not self.start_detect:
+            self.start_detect = True
+            self.learning_button.setText('Detecting')
+            self.learning_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+        image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
+        image = image.scaled(WIDTH, HEIGHT_DET)
+        pixmap = QPixmap.fromImage(image)
+        self.video_label3.setPixmap(pixmap)
+
+    def show_det_after(self, frame):
+        """ This is to show the imgnet detection of the object """
+        image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
+        image = image.scaled(WIDTH, HEIGHT_DET)
+        pixmap = QPixmap.fromImage(image)
+        self.video_label2.setPixmap(pixmap)
 
 
     def view_detection(self, frame):
@@ -345,7 +436,9 @@ class KukaViewWidget(QWidget):
 			return
                     painter.end()
         self.video_label.setPixmap(pixmap)
-# check which image to show
+
+
+    # check which image to show
     def check_learning(self, image):
         if self.learn:
             self.view_learning(image)
@@ -364,7 +457,6 @@ class KukaViewWidget(QWidget):
         self.learn = True
         self.detect = False
         self.task = False
-        #self.progress_bar.reset()
         self._pub_init.publish('learn')
         #self.setup_ui()
 
@@ -383,6 +475,7 @@ class KukaViewWidget(QWidget):
 	    print self.task
 	    self.learn = False
 	    self.detect = False
+            self.setup_ui_task()
 
     # handle user input
     def clear_path(self):
@@ -453,10 +546,18 @@ class KukaViewWidget(QWidget):
     def show_progress(self, progress):
         print("progress is ", progress)
         if progress == MAX_IMG:
-            self.learning_button.setText("Learning 100/100")
+            self.learning_button.setText("Learning 100%")
             self.flip_learning()
         elif progress < MAX_IMG:
-            self.learning_button.setText("Learning {:d}/100".format(progress))
+            self.learning_button.setText("Learning {:d}%".format(int(float(progress)*100/MAX_IMG)))
+
+    def show_feat_progress(self, progress):
+        print("feature progress is ", progress)
+        if progress == 'DONE':
+            self.next_button.setText('End')
+            self.enable_detection()
+            # clear the heatmap and the cropped image
+            self.clear_pixmap()
 
 # handle events
     def resizeEvent(self, QResizeEvent):
