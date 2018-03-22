@@ -1,8 +1,0 @@
-<launch>
-    <!-- launches only the interface for user input
-	 run roslaunch kuka_demo_2018 kuka_task_interface.launch on fuego first
-    -->
-    <node pkg="rqt_kuka_view" type="rqt_kuka_view" name="interface" output="screen"/>  
-</launch>
-
-
