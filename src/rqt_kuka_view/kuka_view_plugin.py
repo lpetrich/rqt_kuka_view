@@ -203,7 +203,6 @@ class KukaViewPlugin(Plugin):
     def _callback_feat_progress(self, ros_data):
         self._widget.show_feat_progress(ros_data.data)
 
-
     def _callback4(self, data):
         self._widget.show_progress(int(data.data))
 
@@ -213,61 +212,8 @@ class KukaViewPlugin(Plugin):
     def restore_settings(self, plugin_settings, instance_settings):
         self._widget.restore_settings(plugin_settings, instance_settings)
 
-    def _callback2(self, ros_data):
-        # check for new image frame and display
-        np_arr = np.fromstring(ros_data.data, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.check_learning(frame)
-
-    def _callback3(self, ros_data):
-        # check for new image frame and display
-        np_arr = np.fromstring(ros_data.data, np.uint8)
-        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.check_detection(frame)
-
-    def _callback5(self, ros_data):
-        # check for new image frame and display
-        #np_arr = np.fromstring(ros_data.data, np.uint8)
-        #frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.show_crop(frame)
-
-    def _callback6(self, ros_data):
-        # check for new image frame and display
-        #np_arr = np.fromstring(ros_data.data, np.uint8)
-        #frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.show_heatmap(frame)
-
-    def _callback7(self, ros_data):
-        # check for new image frame and display
-        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.show_det_after(frame)
-
-    def _callback8(self, ros_data):
-        # check for new image frame and display
-        frame = self._bridge.imgmsg_to_cv2(ros_data, "bgr8")
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self._widget.show_det_before(frame)
 
 
-    def _callback_progress(self, ros_data):
-        self._widget.show_progress(int(ros_data.data))
-
-    def _callback_feat_progress(self, ros_data):
-        self._widget.show_feat_progress(ros_data.data)
 
 
-    def _callback4(self, data):
-        self._widget.show_progress(int(data.data))
 
-    def save_settings(self, plugin_settings, instance_settings):
-        self._widget.save_settings(plugin_settings, instance_settings)
-
-    def restore_settings(self, plugin_settings, instance_settings):
-        self._widget.restore_settings(plugin_settings, instance_settings)

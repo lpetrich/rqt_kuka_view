@@ -71,8 +71,8 @@ class KukaViewWidget(QWidget):
         ##### Three stages
         # default camera view is for learning
         # if you want to change set the default to True and others to False
-        self.learn = True
-        self.detect = False
+        self.learn = False
+        self.detect = True
         self.task = False
         #####
         self.start_learn = False # start/stop learning an object
@@ -226,7 +226,7 @@ class KukaViewWidget(QWidget):
 
             self.cla1_button = QPushButton('Execute')
             self.cla1_button.clicked.connect(self.execute)
-            self.cla1_button.setStyleSheet("background-color: rgba(0,0,0,50%)")
+            self.cla1_button.setStyleSheet("background-color: rgba(0,0,0,50%) ; color: white")
             self.button_layout.addWidget(self.cla1_button)
 
             #if hasattr(self, 'objname_txt'):
@@ -366,24 +366,38 @@ class KukaViewWidget(QWidget):
             print("Before removing ")
             #self.objname_txt.setPlaceholderText('')
             self.button_layout.removeWidget(self.objname_txt) # remove the delete button
+            print('1')
             self.objname_txt.setParent(None)
+            print('2')
             self.objname_txt = None
+            print('3')
             self.del_button.clicked.disconnect()
+            print('4')
             self.button_layout.removeWidget(self.del_button) # remove the delete button
+            print('5')
             self.del_button.setParent(None)
             #self.del_button.deleteLater()
-            #self.del_button = None
+            print('6')
+            self.del_button = None
             print("After removing ")
 
             # Reconnect the signal
+            print('7')
             self.learning_button.clicked.disconnect()
+            print('8')
             self.learning_button.setText('Loading detection')
+            print('9')
             self.learning_button.clicked.connect(self.flip_detection)
+            print('10')
             self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
 
+            print('11')
             self.next_button.clicked.disconnect()
+            print('12')
             self.next_button.setText('DONE')
+            print('13')
             self.next_button.clicked.connect(self.done_detection)
+            print('14')
             self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
             print("finished reconnecting the signals")
 
@@ -538,10 +552,15 @@ class KukaViewWidget(QWidget):
 
     def clear_pixmap(self):
         """ clear the cropped image and the heatmap """
-        pixmap = QPixmap(WIDTH, HEIGHT_DET)
+        #pixmap = QPixmap(WIDTH, HEIGHT_DET)
+        print("before clearing the pixel map")
+        pixmap = QPixmap(WIDTH, HEIGHT)
+        pixmap2 = QPixmap(WIDTH, HEIGHT)
         pixmap.fill(Qt.transparent)
+        pixmap2.fill(Qt.transparent)
         self.video_label2.setPixmap(pixmap)
-        self.video_label3.setPixmap(pixmap)
+        self.video_label3.setPixmap(pixmap2)
+        print("after clearing the pixel map")
 
     def show_crop(self, frame):
         """ This is to show the cropped view of the object """
@@ -564,12 +583,13 @@ class KukaViewWidget(QWidget):
 
     def show_det_before(self, frame):
         """ This is to show the imgnet detection of the object """
+        print('show det before called')
         if not self.learn:
             if not self.start_detect:
                 self.start_detect = True
-                if self.detect: # we might be in the task stage instead since we expect the detection module to deep running to provide bbox info
-                    self.learning_button.setText('Detecting')
-                    self.learning_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+                #if self.detect: # we might be in the task stage instead since we expect the detection module to deep running to provide bbox info
+                #    self.learning_button.setText('Detecting')
+                #    self.learning_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
             image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
             image = image.scaled(WIDTH, HEIGHT_DET)
             pixmap = QPixmap.fromImage(image)
@@ -577,6 +597,7 @@ class KukaViewWidget(QWidget):
 
     def show_det_after(self, frame):
         """ This is to show the imgnet detection of the object """
+        print('show det after called')
         if not self.learn:
             image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
             image = image.scaled(WIDTH, HEIGHT_DET)
@@ -653,6 +674,10 @@ class KukaViewWidget(QWidget):
             self.detect = True
             self.learn = False
             self.task = False
+            self.start_show_crop = False # do not show the crops
+            # clear the heatmap and the cropped image
+            self.clear_pixmap()
+            # set up the UI
             self.setup_ui_detect()
         self._pub_init.publish('detect')
 
@@ -791,8 +816,6 @@ class KukaViewWidget(QWidget):
         if progress == 'DONE':
             self.next_button.setText('End')
             self.enable_detection()
-            # clear the heatmap and the cropped image
-            self.clear_pixmap()
 
 # handle events
     def resizeEvent(self, QResizeEvent):
