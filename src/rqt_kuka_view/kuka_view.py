@@ -32,6 +32,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #######################################################################
 
+from __future__ import print_function
+
 import rospy, subprocess, sys, cv2
 import numpy as np
 import time
@@ -43,14 +45,15 @@ from python_qt_binding.QtWidgets import *
 from .area_trajectory import calculate_trajectory
 
 DEFAULT_NAME = "tool"
+###### size for the image widget
 HEIGHT = 180
 HEIGHT_DET = 300
 WIDTH = 300
-MAX_IMG = 20
+######
+MAX_IMG = 150
 
 class KukaViewWidget(QWidget):
     # initialize widget
-    #def __init__(self, pub_learn, pub_init):
     def __init__(self):
         super(KukaViewWidget, self).__init__()
         self.setWindowTitle('Task Interface')
@@ -58,16 +61,16 @@ class KukaViewWidget(QWidget):
         self.window_size = self.size()
         self.final_path = []
         self.path = []
-	self.draw = False
-	self.draw_all = False
+        self.draw = False
+        self.draw_all = False
         self.send_path = False
         self.calculate_area = False
-	self.p_size = None
-	self.i_size = None
-	self.offset = [0,0]
+        self.p_size = None
+        self.i_size = None
+        self.offset = [0,0]
+        ##### Three stages
         # default camera view is for learning
         # if you want to change set the default to True and others to False
-        ##### Three stages
         self.learn = True
         self.detect = False
         self.task = False
@@ -84,6 +87,11 @@ class KukaViewWidget(QWidget):
         self.setup_ui()
         self.num_objs = 0 # count the number of objects learned
         self.start_show_crop = True # whether to show cropped image
+        # member for layout of buttons to select object
+        self.obj_layout = None
+        self.selected = False
+        self.bbox_ready = False
+        self.cls = [] # list of object names
 
     def setPublisherLearn(self, pub):
         """ set the publisher """
@@ -131,7 +139,10 @@ class KukaViewWidget(QWidget):
     def delete_obj(self):
         if self.learn:
             if not self.objname_txt.text():
-                self.objname_txt.setPlaceholderText('Please enter a valid name!')
+                #self.objname_txt.setPlaceholderText('Please enter a valid name!')
+                # no obj name has been entered, reset
+                self.num_objs = 0
+                self._pub_learn.publish("reset")
             else:
                 self.objname = self.objname_txt.text()
                 self._pub_learn.publish("delete:"+self.objname)
@@ -172,33 +183,212 @@ class KukaViewWidget(QWidget):
             self.next_button.setText('Ending')
             self.enable_tasks()
 
-    def setup_ui_task(self):
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
     def dummy(self):
-        for i in range(10):
-            print("AWESOME")
+        print("I'm clicked")
+
+
+    def execute(self):
+        self._pub_init.publish('execute')
+
+    def setup_ui_task(self):
+        if not self.init:
+            print("Re-setup layout")
+            # Reconnect the signal
+            self.learning_button.setText('Line')
+            self.learning_button.clicked.disconnect()
+            self.learning_button.clicked.connect(self.line_task)
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,255,50%)")
+
+            self.next_button.setText('Region')
+            self.next_button.clicked.disconnect()
+            self.next_button.clicked.connect(self.area_task)
+            self.next_button.setStyleSheet("background-color: rgba(255,255,0,50%)")
+
+            if hasattr(self, 'del_button') and self.del_button is not None:
+                # if exists
+                print('continue del button')
+                self.del_button.setText('Clear')
+                self.del_button.clicked.connect(self.clear_path)
+                self.del_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+                self.button_layout.addWidget(self.del_button)
+            else:
+                print('starting del button')
+                self.del_button = QPushButton('Clear')
+                self.del_button.clicked.connect(self.clear_path)
+                self.del_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+                self.button_layout.addWidget(self.del_button)
+
+            # the following two buttons were not available during the detection stage
+            self.send_button = QPushButton('Send')
+            self.send_button.clicked.connect(self.send_tasks)
+            self.send_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            self.button_layout.addWidget(self.send_button)
+
+            self.cla1_button = QPushButton('Execute')
+            self.cla1_button.clicked.connect(self.execute)
+            self.cla1_button.setStyleSheet("background-color: rgba(0,0,0,50%)")
+            self.button_layout.addWidget(self.cla1_button)
+
+            #if hasattr(self, 'objname_txt'):
+            #self.objname_txt.setPlaceholderText('')
+
+            #print('bbox is ready? ', self.bbox_ready)
+            print('waiting for bbox', end='')
+            while not self.bbox_ready:
+                print('.', end='')
+            print('ready to setup buttons for selecting objects')
+            self.setup_ui_selectobj()
+            print('end of setting up task ui')
+
+        else:
+            # print ('setup UI ..................................')
+            self.layout = QVBoxLayout()
+            # group the buttons for different views
+            self.button_layout = QHBoxLayout()
+            self.image_layout = QHBoxLayout()
+            self.sub_img_layout = QVBoxLayout() # for the two small images
+
+            #self.cls_button_layout = QHBoxLayout()#for the five classes buttons
+
+            self.video_label = QLabel()
+            self.video_label2 = QLabel() # for the second view for the cropped object
+            self.video_label3 = QLabel() # for the third view for the heat map
+
+            self.learning_button = QPushButton('Line')
+            self.learning_button.clicked.connect(self.line_task)
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,255,50%)")
+
+            self.next_button = QPushButton('Region')
+            self.next_button.clicked.connect(self.area_task)
+            self.next_button.setStyleSheet("background-color: rgba(255,255,0,50%)")
+
+            #self.rm_button = QPushButton('Remove')
+            #self.rm_button.clicked.connect(self.remove_path)
+            #self.rm_button.setStyleSheet("background-color: rgba(200,0,0,50%)")
+
+            self.del_button = QPushButton('Clear')
+            self.del_button.clicked.connect(self.clear_path)
+            self.del_button.setStyleSheet("background-color: rgb(255,0,0,50%)")
+
+            self.send_button = QPushButton('Send')
+            self.send_button.clicked.connect(self.send_tasks)
+            self.send_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+
+            self.cla1_button = QPushButton('Execute')
+            self.cla1_button.clicked.connect(self.execute)
+            self.clas_button.setStyleSheet("background-color: rgba(0,0,0,50%)")
+
+
+            self.image_layout.addWidget(self.video_label)
+            self.sub_img_layout.addWidget(self.video_label2)
+            self.sub_img_layout.addWidget(self.video_label3)
+            self.button_layout.addWidget(self.learning_button)
+            self.button_layout.addWidget(self.next_button)
+            #self.button_layout.addWidget(self.rm_button)
+            self.button_layout.addWidget(self.del_button)
+            self.button_layout.addWidget(self.send_button)
+            self.button_layout.addWidget(self.cla1_button)
+            self.layout.addLayout(self.button_layout)
+            self.image_layout.addLayout(self.sub_img_layout)
+            self.layout.addLayout(self.image_layout)
+
+            self.setLayout(self.layout)
+
+    def setup_ui_selectobj(self):
+        print('obj_layout before')
+        self.obj_layout = QVBoxLayout()
+        #self.obj_buttons = QGroupBox("Select the tool")
+        self.obj_buttons = QButtonGroup()
+
+        print('adding push button {}'.format(self.cls[0]))
+        self.obj_button1 = QPushButton(self.cls[0])
+        self.obj_button1.setCheckable(True)
+        self.obj_button1.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        self.obj_buttons.addButton(self.obj_button1, 1)
+        self.obj_layout.addWidget(self.obj_button1)
+        if (self.num >= 2):
+            print('adding push button {}'.format(self.cls[1]))
+            self.obj_button2 = QPushButton(self.cls[1])
+            self.obj_button2.setCheckable(True)
+            self.obj_button2.setStyleSheet("background-color: rgba(0,255,255,50%)")
+            self.obj_buttons.addButton(self.obj_button2, 2)
+            self.obj_layout.addWidget(self.obj_button2)
+        if (self.num >= 3):
+            print('adding push button {}'.format(self.cls[2]))
+            self.obj_button3 = QPushButton(self.cls[2])
+            self.obj_button3.setCheckable(True)
+            self.obj_button3.setStyleSheet("background-color: rgba(0,255,255,50%)")
+            self.obj_buttons.addButton(self.obj_button3, 3)
+            self.obj_layout.addWidget(self.obj_button3)
+        if (self.num == 4):
+            self.obj_button4 = QPushButton(self.cls[3])
+            self.obj_button4.setCheckable(True)
+            self.obj_button4.setStyleSheet("background-color: rgba(0,255,255,50%)")
+            self.obj_buttons.addButton(self.obj_button4)
+            self.obj_layout.addWidget(self.obj_button4)
+
+        self.obj_buttons.buttonClicked[int].connect(self.set_obj_id)
+        self.image_layout.addLayout(self.obj_layout)
+
+    def select_obj(self, data):
+        """ cb function for selecting object, only called once """
+        if (not self.bbox_ready) and self.task:
+            print('before selecting obj')
+            token = data.split(',')
+            self.num = min(4, int(token[0]))
+            print('total number of objects: ', self.num)
+            self.cls = []
+            for i in range(self.num):
+                print('adding the {}-th object'.format(i))
+                self.cls.append(token[5*i+5])
+            self.bbox_ready = True
+
+    def set_obj_id(self, button_id):
+        """ set the object name to pick """
+        print("the clicked button is", button_id)
+        if button_id == 1:
+            self.obj_id = self.obj_button1.text().strip()
+            #self.obj_button1.setChecked(True)
+        elif button_id == 2:
+            self.obj_id = self.obj_button2.text().strip()
+            #self.obj_button2.setChecked(True)
+        elif button_id == 3:
+            self.obj_id = self.obj_button3.text().strip()
+            #self.obj_button3.setChecked(True)
+        elif button_id == 4:
+            self.obj_id = self.obj_button4.text().strip()
+        print('The object id is', self.obj_id)
 
     def setup_ui_detect(self):
         """ set up user interface for the detect phase """
         if not self.init:
             print("Re-setup layout")
-            # Reconnect the signal
-            self.learning_button.setText('Loading detection')
-            self.learning_button.clicked.disconnect()
-            self.learning_button.clicked.connect(self.flip_detection)
+            print("Before removing ")
+            #self.objname_txt.setPlaceholderText('')
+            self.button_layout.removeWidget(self.objname_txt) # remove the delete button
+            self.objname_txt.setParent(None)
+            self.objname_txt = None
+            self.del_button.clicked.disconnect()
+            self.button_layout.removeWidget(self.del_button) # remove the delete button
+            self.del_button.setParent(None)
+            #self.del_button.deleteLater()
+            #self.del_button = None
+            print("After removing ")
 
-            self.next_button.setText('DONE')
+            # Reconnect the signal
+            self.learning_button.clicked.disconnect()
+            self.learning_button.setText('Loading detection')
+            self.learning_button.clicked.connect(self.flip_detection)
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+
             self.next_button.clicked.disconnect()
+            self.next_button.setText('DONE')
             self.next_button.clicked.connect(self.done_detection)
             self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
-
-            self.objname_txt.setPlaceholderText('')
+            print("finished reconnecting the signals")
 
         else:
             print("Initing the layout for detection")
-            self.init = False
             self.layout = QVBoxLayout()
             # group the buttons for different views
             self.button_layout = QHBoxLayout()
@@ -209,29 +399,25 @@ class KukaViewWidget(QWidget):
             self.video_label2 = QLabel() # for the second view for the cropped object
             self.video_label3 = QLabel() # for the third view for the heat map
 
-            self.learning_button = QPushButton('Start detection')
-            self.learning_button.clicked.connect(self.dummy)
-            self.learning_button.setStyleSheet("background-color: lime")
+            self.learning_button = QPushButton('Loading detection')
+            self.learning_button.clicked.connect(self.flip_detection)
+            self.learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
 
-            #self.next_button = QPushButton('DONE')
-            #self.next_button.clicked.connect(self.done_learning)
-            #self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
-
-            #self.objname_txt = QLineEdit()
-            #self.objname_txt.setPlaceholderText('Please enter the name of object')
-            #self.objname_txt.setFocus()
+            self.next_button = QPushButton('DONE')
+            self.next_button.clicked.connect(self.done_detection)
+            self.next_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
 
             self.image_layout.addWidget(self.video_label)
-            #self.sub_img_layout.addWidget(self.video_label2)
-            #self.sub_img_layout.addWidget(self.video_label3)
-            #self.button_layout.addWidget(self.objname_txt)
+            self.sub_img_layout.addWidget(self.video_label2)
+            self.sub_img_layout.addWidget(self.video_label3)
             self.button_layout.addWidget(self.learning_button)
-            #self.button_layout.addWidget(self.next_button)
+            self.button_layout.addWidget(self.next_button)
             self.layout.addLayout(self.button_layout)
-            #self.image_layout.addLayout(self.sub_img_layout)
+            self.image_layout.addLayout(self.sub_img_layout)
             self.layout.addLayout(self.image_layout)
 
             self.setLayout(self.layout)
+            self.init = False
 
     def setup_ui_learn(self):
         """ set up user interface for the learning phase """
@@ -273,7 +459,7 @@ class KukaViewWidget(QWidget):
         self.layout.addLayout(self.image_layout)
 
         self.setLayout(self.layout)
-        ## the following is on the very first module anymore
+        ## the following is on the very first module
         self.init = False
 
     def setup_ui(self):
@@ -289,6 +475,8 @@ class KukaViewWidget(QWidget):
             self.enable_learning()
         elif self.detect:
             self.enable_detection()
+        elif self.task:
+            self.enable_tasks()
 
     def setup_ui_original(self):
         """ The original (old) function for all the UI components"""
@@ -296,7 +484,6 @@ class KukaViewWidget(QWidget):
         self.layout = QVBoxLayout()
         # group the buttons for different views
         self.button_layout = QHBoxLayout()
-	self.button_layout2 = QHBoxLayout()
         self.image_layout = QHBoxLayout()
         self.progress_layout = QHBoxLayout()
 
@@ -377,22 +564,24 @@ class KukaViewWidget(QWidget):
 
     def show_det_before(self, frame):
         """ This is to show the imgnet detection of the object """
-        if not self.start_detect:
-            self.start_detect = True
-            self.learning_button.setText('Detecting')
-            self.learning_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
-        image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
-        image = image.scaled(WIDTH, HEIGHT_DET)
-        pixmap = QPixmap.fromImage(image)
-        self.video_label3.setPixmap(pixmap)
+        if not self.learn:
+            if not self.start_detect:
+                self.start_detect = True
+                if self.detect: # we might be in the task stage instead since we expect the detection module to deep running to provide bbox info
+                    self.learning_button.setText('Detecting')
+                    self.learning_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+            image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
+            image = image.scaled(WIDTH, HEIGHT_DET)
+            pixmap = QPixmap.fromImage(image)
+            self.video_label3.setPixmap(pixmap)
 
     def show_det_after(self, frame):
         """ This is to show the imgnet detection of the object """
-        image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
-        image = image.scaled(WIDTH, HEIGHT_DET)
-        pixmap = QPixmap.fromImage(image)
-        self.video_label2.setPixmap(pixmap)
-
+        if not self.learn:
+            image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
+            image = image.scaled(WIDTH, HEIGHT_DET)
+            pixmap = QPixmap.fromImage(image)
+            self.video_label2.setPixmap(pixmap)
 
     def view_detection(self, frame):
         # switch view for object detection
@@ -406,10 +595,10 @@ class KukaViewWidget(QWidget):
         # frame = cv2.flip(frame, 1)
         image = QImage(frame, frame.shape[1], frame.shape[0], frame.strides[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
-        pixmap = pixmap.scaledToWidth(self.window_size.width() - 30)
-	self.offset = [(self.video_label.size().width() - pixmap.size().width()) / 2, (self.video_label.size().height() - pixmap.size().height()) / 2]
-	self.p_size = pixmap.size()
-	self.i_size = image.size()
+        pixmap = pixmap.scaledToWidth(self.video_label.width()) #window_size.width() - 30)
+        self.offset = [(self.video_label.size().width() - pixmap.size().width()) / 2, (self.video_label.size().height() - pixmap.size().height()) / 2]
+        self.p_size = pixmap.size()
+        self.i_size = image.size()
         # draw while moving
         if self.draw:
             for i in range(len(self.path) - 1):
@@ -422,7 +611,7 @@ class KukaViewWidget(QWidget):
 		    break
 		painter.end()
         # draw all paths
-	if self.draw_all:
+        if self.draw_all:
             for i in range(len(self.final_path)):
                 for j in range(len(self.final_path[i]) - 1):
                     painter = QPainter(pixmap)
@@ -436,7 +625,6 @@ class KukaViewWidget(QWidget):
 			return
                     painter.end()
         self.video_label.setPixmap(pixmap)
-
 
     # check which image to show
     def check_learning(self, image):
@@ -461,54 +649,100 @@ class KukaViewWidget(QWidget):
         #self.setup_ui()
 
     def enable_detection(self):
-        #if not self.detect:
-        self.detect = True
-        self.learn = False
-        self.task = False
+        if not self.detect:
+            self.detect = True
+            self.learn = False
+            self.task = False
+            self.setup_ui_detect()
         self._pub_init.publish('detect')
-        self.setup_ui_detect()
 
     def enable_tasks(self):
-	print self.task
         if not self.task:
             self.task = True
-	    print self.task
-	    self.learn = False
-	    self.detect = False
+            self.learn = False
+            self.detect = False
             self.setup_ui_task()
+
+
+    def remove_path(self):
+        #remove the last drawn path
+        print("list..........")
+        print(len(self.final_path))
+        self.draw = False
+        if self.final_path:
+            del self.final_path[-1]
+        print("The last path is removed!!!")
 
     # handle user input
     def clear_path(self):
         # reset all paths, stop publishing
-	self.draw_all = False
+        self.draw_all = False
         self.send_path = False
-        del self.final_path[:]
+        if self.final_path:
+            del self.final_path[:]
+        print("Path cleared!!!")
+
+    def line_task(self):
+        #set area task
+        self.calculate_area = False
+        print("Line tasks....")
 
     def area_task(self):
         # set area task
         self.calculate_area = True
+        print("Region tasks...")
 
     def send_tasks(self):
         # publish path to topic
-        self.send_path = True
+        if self.send_button.text() == 'Send':
+            print('check if obj id has been set')
+            #print(self.obj_id)
+            if not hasattr(self, 'obj_id'):
+                # if the object hasn't been selected, pop up warning
+                msg = QMessageBox()
+                #print('creating message box')
+                msg.setText('Please select the object')
+                msg.setWindowTitle('Forgot anything?')
+                msg.setIcon(QMessageBox.Information)
+                msg.setStandardButtons(QMessageBox.Ok)
+                ret = msg.exec_()
+            elif not self.final_path:
+                # if the object hasn't been selected, pop up warning
+                msg = QMessageBox()
+                msg.setText('Has not set path yet')
+                msg.setWindowTitle('Forgot anything?')
+                msg.setIcon(QMessageBox.Information)
+                msg.setStandardButtons(QMessageBox.Ok)
+                ret = msg.exec_()
+            else:
+                self.send_button.setText('Confirm?')
+        elif self.send_button.text() == 'Confirm?':
+            # only send if confirmed
+            self.send_path = True
+            self.send_button.setText('Send')
 
     def map_path(self, vector):
         num = len(vector)
-    	xrange_input = self.video_label.size().width()
+    #	xrange_input = self.video_label.size().width()
+        xrange_input = self.p_size.width()
     	xrange_output = self.i_size.width()
-    	yrange_input = self.video_label.size().height()
+   # 	yrange_input = self.video_label.size().height()
+        yrange_input = self.p_size.height()
     	yrange_output = self.i_size.height()
         mapped = []
     	if self.i_size != None and self.p_size != None:
     		for i in range(num):
     		    temp = []
     		    for j in range(len(vector[i])):
-    			u = (float(vector[i][j][0] + self.offset[0]) * xrange_output / xrange_input)
-    			v = (float(vector[i][j][1] + self.offset[1]) * yrange_output / yrange_input)
+    			u = (float(vector[i][j][0] - self.offset[0]) * xrange_output / xrange_input)
+    			v = (float(vector[i][j][1] - self.offset[1]) * yrange_output / yrange_input)
+                        print(".....")
+                        print(yrange_output)
+                        print(yrange_input)
     		        temp.append((int(u), int(v)))
     		    mapped.append(temp)
-    	print 'before: ', vector[0]
-    	print 'after: ', mapped[0]
+    	print('before: ', vector[0])
+    	print('after: ', mapped[0])
         return mapped
 
     def string_converter(self, vector):
@@ -531,14 +765,15 @@ class KukaViewWidget(QWidget):
         return all_paths
 
     def check_if_path_ready(self):
-        # check if ready to publish
+        """ check if ready to publish """
         if self.send_path:
+            self._pub_init.publish('grasp:'+self.obj_id)
             tmp = self.final_path[:]
             #print 'before mapping: ', tmp
             mapped_path = self.map_path(tmp)
             all_paths = self.string_converter(mapped_path)
             #print 'mapped: ', all_paths
-	    self.send_path = False
+            self.send_path = False
             return all_paths
         else:
             return None
@@ -564,17 +799,18 @@ class KukaViewWidget(QWidget):
         # reset window_size and clear all paths
         self.window_size = self.size()
         #pixmap = pixmap.scaledToWidth(self.window_size.width() - 30)
-	#self.offset = self.video_label.size().width() - (self.window_size.width() - 30)
-	print 'offset: ', self.offset
-	print 'video label: ', self.video_label.size()
-	print 'window size: ', self.window_size
-	print 'pixmap size: ',self.p_size
-	print 'img size: ', self.i_size
-        self.clear_path()
+        #self.offset = self.video_label.size().width() - (self.window_size.width() - 30)
+        print('offset: ', self.offset)
+        print('video label: ', self.video_label.size())
+        print('window size: ', self.window_size)
+        print('pixmap size: ',self.p_size)
+        print('img size: ', self.i_size)
+        if self.task:
+            self.clear_path()
 
     def mouseMoveEvent(self, QMouseEvent):
         # grab users path and append if path is not to be sent
-	self.draw = True
+        self.draw = True
         if not self.send_path:
             # map global position to local image
 	    pos = QMouseEvent.globalPos()
@@ -584,18 +820,18 @@ class KukaViewWidget(QWidget):
             self.path.append([pos.x(), pos.y()])
 
     def mouseReleaseEvent(self, QMouseEvent):
-	print 'yoffset: ', self.offset
-	print 'video label: ', self.video_label.size()
-	print 'window size: ', self.window_size
-	print 'pixmap size: ',self.p_size
-	print 'img size: ', self.i_size
-	self.draw = False
+        print('yoffset: ', self.offset)
+        print('video label: ', self.video_label.size())
+        print('window size: ', self.window_size)
+        print('pixmap size: ',self.p_size)
+        print('img size: ', self.i_size)
+        self.draw = False
         T = self.path[:]
         # calculate area if needed
         if self.calculate_area:
             area = calculate_trajectory(T)
             if area == None:
-                print 'Please select an area'
+                print('Please select an area')
 		self.send_path = False
 		return
             else:
@@ -605,11 +841,11 @@ class KukaViewWidget(QWidget):
                         temp.append(p)
                     else:
                         self.final_path.append(temp)
-                self.calculate_area = False
+           #     self.calculate_area = False
         else:
             self.final_path.append(T)
         del self.path[:]
-	self.draw_all = True
+        self.draw_all = True
 
     def save_settings(self, plugin_settings, instance_settings):
         # self._nav_view.save_settings(plugin_settings, instance_settings)
