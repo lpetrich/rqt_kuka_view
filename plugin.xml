@@ -1,0 +1,17 @@
+<library path="src">
+  <class name="KukaView" type="rqt_kuka_view.kuka_view_plugin.KukaViewPlugin" base_class_type="rqt_gui_py::Plugin">
+    <description>
+    Display for navigation.
+    </description>
+    <qtgui>
+      <group>
+        <label>Visualization</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to visualization.</statustip>
+      </group>
+      <label>Navigation Viewer</label>
+      <icon type="theme">video-display</icon>
+      <statustip>Navigation Viewer</statustip>
+    </qtgui>
+  </class>
+</library>
