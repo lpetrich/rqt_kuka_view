@@ -49,13 +49,13 @@ from .area_trajectory import calculate_trajectory
 L_IMG_WIDTH = 300
 L_CROP_HEIGHT = 180
 MAX_IMG = 150
+DEFAULT_NAME = "tool"
 ##### DETECT #####
 D_IMG_WIDTH = 300
 D_CROP_HEIGHT = 180
 D_CROP_WIDTH = 300
 ##### TASK #####
 T_IMG_WIDTH = 360
-DEFAULT_NAME = "tool"
 
 
 class KukaViewWidget(QWidget):
@@ -63,7 +63,27 @@ class KukaViewWidget(QWidget):
         super(KukaViewWidget, self).__init__()
         self.setWindowTitle('KUKA Interface')
         self.main_layout = QVBoxLayout()
-        self.mode = 'learn'
+        self.mode = 'empty'
+
+        ##### Define the custom signals and slots for bridging with ROS callbacks #####
+        # such that ros callbacks will emit signal instead directly manipulating UI componets
+        #
+        # This is due to the following guidelines from http://wiki.ros.org/rqt/Tutorials/Writing%20a%20Python%20Plugin
+        # Due to restrictions in Qt, you cannot manipulate Qt widgets directly within ROS callbacks,
+        # because they are running in a different thread.
+        # In the ROS callback you can:
+        #   emit a Qt signal (which will bridge across the threads) and manipulate the widgets in the receiving slot
+        #self.connect(self, SIGNAL("Image-learn arrived"),self.view_learning)
+        #self.connect(self, SIGNAL("Image-detect arrived"),self.view_detection)
+        #self.connect(self, SIGNAL("Image-task arrived"),self.view_task)
+        #self.connect(self, SIGNAL("Crop arrived"),self.show_crop)
+        #self.connect(self, SIGNAL("Heatmap arrived"),self.show_heatmap)
+        #self.connect(self, SIGNAL("Clear subimages"),self.clear_pixmap)
+        #self.connect(self, SIGNAL("Show-det-before"),self.show_det_before)
+        #self.connect(self, SIGNAL("Show-det-after"),self.show_det_after)
+
+
+
         ##### LEARN VARIABLES #####
         self.l_video_1 = QLabel()
         self.l_video_2 = QLabel()
@@ -104,6 +124,7 @@ class KukaViewWidget(QWidget):
         self.bridge = CvBridge()
         self.initialize_widgets()
         self.setLayout(self.main_layout)
+
         ######################## setup publishers and subscribers ########################
         ##### LEARN #####
         self.pub_learn = rospy.Publisher('/command_learn', String, queue_size=10)
@@ -566,6 +587,7 @@ class KukaViewWidget(QWidget):
         self.learn_widget = QWidget()
         self.detect_widget = QWidget()
         self.task_widget = QWidget()
+        self.empty_widget = QWidget() # empty widget to show in the beginning
 
         self.l_layout = self.learn_layout()
         self.d_layout = self.detect_layout()
@@ -575,10 +597,12 @@ class KukaViewWidget(QWidget):
         self.detect_widget.setLayout(self.d_layout)
         self.task_widget.setLayout(self.t_layout)
 
+        self.stacked_widget.addWidget(self.empty_widget)
         self.stacked_widget.addWidget(self.learn_widget)
         self.stacked_widget.addWidget(self.detect_widget)
         self.stacked_widget.addWidget(self.task_widget)
         self.main_layout.addWidget(self.stacked_widget)
+        self.setFocusPolicy(Qt.StrongFocus)
 
 #################### MODE CHANGE METHODS ####################
     def activate_widget(self, index):
@@ -590,18 +614,20 @@ class KukaViewWidget(QWidget):
 
     def change_widget(self):
         if self.mode == 'learn':
-            self.activate_widget(0)
-        elif self.mode == 'detect':
             self.activate_widget(1)
-        elif self.mode == 'task':
+        elif self.mode == 'detect':
             self.activate_widget(2)
+        elif self.mode == 'task':
+            self.activate_widget(3)
+        elif self.mode == 'empty':
+            self.activate_widget(0)
         else:
             print('change widget error')
 
     def update_mode(self, mode):
         self.mode = mode
         self.pub_init.publish(self.mode)
-        print('CHANGED TO: %s', self.mode)
+        print('CHANGED TO: {}'.format(self.mode))
         self.change_widget()
 
 #################### IMAGE CONVERSION METHODS ####################
@@ -626,6 +652,21 @@ class KukaViewWidget(QWidget):
     def resizeEvent(self, QResizeEvent):
         if self.mode == 'task':
             self.task_clear()
+
+    def keyPressEvent(self, key_event):
+        """ grab the key to switch the views  """
+        k = key_event.key()
+        print("The registered key was", k)
+        if k == Qt.Key_L:
+            self.update_mode("learn")
+        elif k == Qt.Key_D:
+            self.update_mode("detect")
+        elif k == Qt.Key_T:
+            self.update_mode("task")
+        elif k == Qt.Key_E:
+            self.update_mode("empty")
+        else:
+            print("Invalid key, please press one of L,D,T,E")
 
     def mouseMoveEvent(self, QMouseEvent):
         # grab users path and append if path is not to be sent
