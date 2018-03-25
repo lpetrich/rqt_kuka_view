@@ -286,19 +286,9 @@ class KukaViewWidget(QWidget):
         for i in range(self.num_bbox):
             print('adding the {}-th object'.format(i))
             self.cls[i] = token[5*i+5]
-        self.cls.sort()
+        self.cls.sort(reverse=True)
         #self.obj_list_ready = True
         self.update_object_layout()
-
-#################### TASK BUTTON METHODS ####################
-    def set_object_id(self, button_id):
-        """ set the object name to pick """
-        button = self.obj_buttons.button(button_id)
-        self.object_id = button.text().strip()
-        print('The object id is', self.object_id)
-        if self.object_id == '':
-            msg = QMessageBox()
-            msg.setText('Please select a valid object')
 
     ## custom signals that update the UI from ROS cb
     def signal_video_task(self, data):
