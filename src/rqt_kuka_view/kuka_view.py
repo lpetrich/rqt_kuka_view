@@ -290,36 +290,6 @@ class KukaViewWidget(QWidget):
         #self.obj_list_ready = True
         self.update_object_layout()
 
-    ## custom signals that update the UI from ROS cb
-    def signal_video_task(self, data):
-        self.emit(SIGNAL("Image-task arrived"), data)
-
-    def signal_add_obj_list(self, data):
-        self.emit(SIGNAL("Add-obj-list"), data)
-
-    ## slots that update the UI
-    def show_task(self, data):
-        pixmap = self.convert_compressed_img(data)
-        self.i_size = pixmap.size()
-        #pixmap = pixmap.scaledToWidth(self.t_video_1.width())
-        pixmap = pixmap.scaledToWidth(T_IMG_WIDTH)
-        self.draw_tasks(pixmap)
-
-    def add_obj_list(self, data):
-        """ Fill the object list and update UI """
-        print('before selecting obj')
-        txt = data.data.strip()
-        token = txt.split(',')
-        self.num_bbox = min(4, int(token[0]))
-        print('total number of objects: ', self.num_bbox)
-        self.cls = ['', '', '', '']
-        for i in range(self.num_bbox):
-            print('adding the {}-th object'.format(i))
-            self.cls[i] = token[5*i+5]
-        self.cls.sort()
-        #self.obj_list_ready = True
-        self.update_object_layout()
-
 #################### TASK BUTTON METHODS ####################
     def set_object_id(self, button_id):
         """ set the object name to pick """
@@ -364,6 +334,14 @@ class KukaViewWidget(QWidget):
                 # if the object hasn't been selected, pop up warning
                 msg = QMessageBox()
                 msg.setText('Please select the object')
+                msg.setWindowTitle('Forgetting anything?')
+                msg.setIcon(QMessageBox.Information)
+                msg.setStandardButtons(QMessageBox.Ok)
+                ret = msg.exec_()
+            elif self.object_id not in self.cls:
+                # if the object selected is not in the list anymore
+                msg = QMessageBox()
+                msg.setText('Object not there anymore. Please re-select the object')
                 msg.setWindowTitle('Forgetting anything?')
                 msg.setIcon(QMessageBox.Information)
                 msg.setStandardButtons(QMessageBox.Ok)
