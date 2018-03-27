@@ -79,6 +79,7 @@ class KukaViewWidget(QWidget):
         self.connect(self, SIGNAL("Image-task arrived"), self.show_task)
         self.connect(self, SIGNAL("Crop arrived"), self.show_crop)
         self.connect(self, SIGNAL("Heatmap arrived"), self.show_heatmap)
+        self.connect(self, SIGNAL("Feature-crops arrived"), self.show_feature)
         self.connect(self, SIGNAL("Show-det-before"), self.show_det_before)
         self.connect(self, SIGNAL("Show-det-after"), self.show_det_after)
         self.connect(self, SIGNAL("Show-task-after"), self.show_task_after)
@@ -93,6 +94,7 @@ class KukaViewWidget(QWidget):
         self.l_video_3 = QLabel()
         self.l_user_input = QLineEdit()
         self.l_done_button = QPushButton('DONE')
+        self.l_progressbar = QProgressBar()
         self.l_learning_button = QPushButton('Start Learning')
         self.currently_learning = False # start/stop learning an object
         self.num_objects = 0 # count the number of objects learned
@@ -142,10 +144,11 @@ class KukaViewWidget(QWidget):
         self.sub_learn1 = rospy.Subscriber('/cam1/camera/image_raw/compressed',  CompressedImage, self.cb_learn1, queue_size = 1)
         self.sub_learn2 = rospy.Subscriber('/map', Image, self.cb_learn2,  queue_size = 1)
         self.sub_learn3 = rospy.Subscriber('/crop', Image, self.cb_learn3, queue_size = 1)
+        self.sub_learn6 = rospy.Subscriber('/feature_image', Image, self.cb_learn4, queue_size = 1)
         self.sub_learn4 = rospy.Subscriber('/feature_progress', String, self.cb_progress1, queue_size = 1)
         self.sub_learn5 = rospy.Subscriber('/learning_progress', String, self.cb_progress2, queue_size = 1)
         ##### DETECT #####
-        self.pub_detect = rospy.Publisher('/command_det', String, queue_size=10)
+        self.pub_detect = rospy.Publisher('/command_detect', String, queue_size=10)
         self.sub_detect1 = rospy.Subscriber('/kinect2/hd/image_color_rect/compressed', CompressedImage, self.cb_detect1, queue_size = 1)
         self.sub_detect2 = rospy.Subscriber('/cl_image', Image, self.cb_detect2,  queue_size = 1)
         self.sub_detect3 = rospy.Subscriber('/imgnet_image', Image, self.cb_detect3,  queue_size = 1)
@@ -221,6 +224,10 @@ class KukaViewWidget(QWidget):
     def draw_tasks(self, pixmap):
         self.offset = [(self.t_video_1.size().width() - pixmap.size().width()) / 2, (self.t_video_1.size().height() - pixmap.size().height()) / 2]
         self.p_size = pixmap.size()
+        #print("Start drawing, p_size is", self.p_size) # 600,450
+        #print("Start drawing, i_size is", self.i_size) # 640, 480
+        #print("The t_video_1 size is", self.t_video_1.size()) # 600, 619
+        #print("The offset is", self.offset)
         # draw while moving
         if self.draw:
             for i in range(len(self.path) - 1):
@@ -270,21 +277,21 @@ class KukaViewWidget(QWidget):
     ## slots that update the UI
     def show_task(self, data):
         pixmap = self.convert_compressed_img(data)
-        self.i_size = pixmap.size()
+        self.i_size = pixmap.size() # get the original size of the image
         #pixmap = pixmap.scaledToWidth(self.t_video_1.width())
         pixmap = pixmap.scaledToWidth(T_IMG_WIDTH)
         self.draw_tasks(pixmap)
 
     def add_obj_list(self, data):
         """ Fill the object list and update UI """
-        print('before selecting obj')
+        #print('before selecting obj')
         txt = data.data.strip()
         token = txt.split(',')
         self.num_bbox = min(4, int(token[0]))
-        print('total number of objects: ', self.num_bbox)
+        #print('total number of objects: ', self.num_bbox)
         self.cls = ['', '', '', '']
         for i in range(self.num_bbox):
-            print('adding the {}-th object'.format(i))
+            #print('adding the {}-th object'.format(i))
             self.cls[i] = token[5*i+5]
         self.cls.sort(reverse=True)
         #self.obj_list_ready = True
@@ -295,7 +302,7 @@ class KukaViewWidget(QWidget):
         """ set the object name to pick """
         button = self.obj_buttons.button(button_id)
         self.object_id = button.text().strip()
-        print('The object id is', self.object_id)
+        #print('The object id is', self.object_id)
         if self.object_id == '':
             msg = QMessageBox()
             msg.setText('Please select a valid object')
@@ -311,11 +318,11 @@ class KukaViewWidget(QWidget):
 
     def task_line(self):
         self.calculate_area = False
-        print("Line tasks....")
+        #print("Line tasks....")
 
     def task_area(self):
         self.calculate_area = True
-        print("Region tasks...")
+        #print("Region tasks...")
 
     def task_clear(self):
         # reset all paths, stop publishing
@@ -328,7 +335,7 @@ class KukaViewWidget(QWidget):
     def task_send(self):
         # publish path to topic
         if self.t_send_button.text() == 'Send':
-            print('check if obj id has been set')
+            #print('check if obj id has been set')
             #print(self.object_id)
             if (not self.object_id) or (self.object_id == ''):
                 # if the object hasn't been selected, pop up warning
@@ -366,7 +373,7 @@ class KukaViewWidget(QWidget):
 
 #################### TASK LAYOUTS ####################
     def update_object_layout(self):
-        print('Updating obj_layout ...')
+        #print('Updating obj_layout ...')
         # update the txt
         self.obj_button1.setText(self.cls[0])
         self.obj_button2.setText(self.cls[1])
@@ -374,28 +381,28 @@ class KukaViewWidget(QWidget):
         self.obj_button4.setText(self.cls[3])
 
     def object_layout(self):
-        print('Setting up obj_layout ...')
+        #print('Setting up obj_layout ...')
         obj_layout = QVBoxLayout()
         self.obj_buttons = QButtonGroup()
-        print('adding push button {}'.format(self.cls[0]))
+        #print('adding push button {}'.format(self.cls[0]))
         self.obj_button1 = QPushButton(self.cls[0])
         self.obj_button1.setCheckable(True)
         self.obj_button1.setStyleSheet("background-color: rgba(0,255,255,50%)")
         self.obj_buttons.addButton(self.obj_button1, 1)
         obj_layout.addWidget(self.obj_button1)
-        print('adding push button {}'.format(self.cls[1]))
+        #print('adding push button {}'.format(self.cls[1]))
         self.obj_button2 = QPushButton(self.cls[1])
         self.obj_button2.setCheckable(True)
         self.obj_button2.setStyleSheet("background-color: rgba(0,255,255,50%)")
         self.obj_buttons.addButton(self.obj_button2, 2)
         obj_layout.addWidget(self.obj_button2)
-        print('adding push button {}'.format(self.cls[2]))
+        #print('adding push button {}'.format(self.cls[2]))
         self.obj_button3 = QPushButton(self.cls[2])
         self.obj_button3.setCheckable(True)
         self.obj_button3.setStyleSheet("background-color: rgba(0,255,255,50%)")
         self.obj_buttons.addButton(self.obj_button3, 3)
         obj_layout.addWidget(self.obj_button3)
-        print('adding push button {}'.format(self.cls[3]))
+        #print('adding push button {}'.format(self.cls[3]))
         self.obj_button4 = QPushButton(self.cls[3])
         self.obj_button4.setCheckable(True)
         self.obj_button4.setStyleSheet("background-color: rgba(0,255,255,50%)")
@@ -593,6 +600,10 @@ class KukaViewWidget(QWidget):
         if self.mode == 'learn':
             self.signal_video_crop(data)
 
+    def cb_learn4(self, data):
+        if self.mode == 'learn':
+            self.signal_video_feature(data)
+
     ## custom signals that update the UI from ROS cb
     def signal_video_learn(self, data):
         self.emit(SIGNAL("Image-learn arrived"), data)
@@ -602,6 +613,9 @@ class KukaViewWidget(QWidget):
 
     def signal_video_heatmap(self, data):
         self.emit(SIGNAL("Heatmap arrived"), data)
+
+    def signal_video_feature(self, data):
+        self.emit(SIGNAL("Feature-crops arrived"), data)
 
     def signal_progress_learn(self, data):
         self.emit(SIGNAL("Progress_learn arrived"), data)
@@ -625,14 +639,21 @@ class KukaViewWidget(QWidget):
         pixmap = pixmap.scaled(D_CROP_WIDTH, D_CROP_HEIGHT)
         self.l_video_3.setPixmap(pixmap)
 
+    def show_feature(self, data):
+        pixmap = self.convert_img(data)
+        pixmap = pixmap.scaled(D_CROP_WIDTH, D_CROP_HEIGHT)
+        self.l_video_2.setPixmap(pixmap)
+
     def show_progress_learn(self, data):
         progress = int(data.data)
         print("learning progress is ", progress)
         if progress == MAX_IMG:
-            self.l_learning_button.setText("Learning 100%")
+            self.l_progressbar.setValue(100)
+            #self.l_learning_button.setText("Learning 100%")
             self.learn_start()
         elif progress < MAX_IMG:
-            self.l_learning_button.setText("Learning {:d}%".format(int(float(progress)*100/MAX_IMG)))
+            #self.l_learning_button.setText("Learning {:d}%".format(int(float(progress)*100/MAX_IMG)))
+            self.l_progressbar.setValue(int(float(progress)*100/MAX_IMG))
 
     def show_progress_feature(self, data):
         progress = data.data
@@ -640,6 +661,8 @@ class KukaViewWidget(QWidget):
         if progress == 'DONE':
             self.l_done_button.setText('DONE')
             self.update_mode('detect')
+        elif (int(progress) >= 0):
+            self.l_progressbar.setValue(int(float(progress)*100/MAX_IMG))
 
 #################### LEARN BUTTON METHODS ####################
     def learn_start(self):
@@ -713,6 +736,7 @@ class KukaViewWidget(QWidget):
         layout.addLayout(button_layout)
         image_layout.addLayout(crop_image_layout)
         layout.addLayout(image_layout)
+        layout.addWidget(self.l_progressbar)
         return layout
 
     def initialize_widgets(self):
@@ -747,11 +771,14 @@ class KukaViewWidget(QWidget):
 
     def change_widget(self):
         if self.mode == 'learn':
+            self.pub_detect.publish('kill')
             self.activate_widget(1)
         elif self.mode == 'detect':
+            self.pub_learn.publish('kill')
             self.activate_widget(2)
         elif self.mode == 'task':
             self.obj_list_ready = False
+            self.pub_learn.publish('kill')
             self.activate_widget(3)
         elif self.mode == 'empty':
             self.activate_widget(0)
@@ -809,10 +836,16 @@ class KukaViewWidget(QWidget):
             if not self.send_path:
                 # map global position to local image
                 pos = QMouseEvent.globalPos()
-                #print 'global: ', pos
+                #print('global: ', pos)
                 pos = self.t_video_1.mapFromGlobal(pos)
-                #print 'local: ', pos
-                self.path.append([pos.x(), pos.y()])
+                #print('local: ', pos)
+                #print('t_video_1 size:', self.t_video_1.size())
+                if (( pos.x()< self.t_video_1.width()-self.offset[0]) and (pos.x() > self.offset[0]) and
+                    (pos.y() < self.t_video_1.height()-self.offset[1]) and (pos.y() > self.offset[1])):
+                    # only register the points if it's within the boundaries
+                    self.path.append([pos.x(), pos.y()])
+                else:
+                    print("path is invalid")
 
     def mouseReleaseEvent(self, QMouseEvent):
         if self.mode == 'task':
