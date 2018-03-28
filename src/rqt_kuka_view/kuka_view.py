@@ -48,7 +48,7 @@ from .area_trajectory import calculate_trajectory
 ##### LEARN #####
 #L_IMG_WIDTH = 300
 #L_CROP_HEIGHT = 180
-MAX_IMG = 100
+MAX_IMG = 200
 DEFAULT_NAME = "tool"
 ##### DETECT #####
 D_IMG_WIDTH = 300
@@ -93,7 +93,7 @@ class KukaViewWidget(QWidget):
         self.l_video_2 = QLabel()
         self.l_video_3 = QLabel()
         self.l_user_input = QLineEdit()
-        self.l_done_button = QPushButton('DONE')
+        self.l_done_button = QPushButton('Done')
         self.l_progressbar = QProgressBar()
         self.l_learning_button = QPushButton('Start Learning')
         self.currently_learning = False # start/stop learning an object
@@ -102,8 +102,10 @@ class KukaViewWidget(QWidget):
         self.d_video_1 = QLabel()
         self.d_video_2 = QLabel()
         self.d_video_3 = QLabel()
-        self.d_stop_button = QPushButton('DONE')
+        self.d_stop_button = QPushButton('Done')
         self.d_detecting_button = QPushButton('Start Detecting')
+        self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20px;")
+        self.pause_det_style = "background-color: rgba(250,59,33,70%); color: white; font: 20px;"
         self.currently_detecting = False # start/stop detection
         ##### TASK VARIABLES #####
         self.t_video_1 = QLabel()
@@ -133,6 +135,17 @@ class KukaViewWidget(QWidget):
         self.obj_button4 = None
         self.num_bbox = 4
         self.cls = ['', '', '', ''] # list of object names
+        # the default layout
+        self.e_start_button = QPushButton('Start DEMO')
+        self.e_start_button.clicked.connect(self.empty_start)
+        self.e_start_button.setStyleSheet("background-color: rgba(0,255,0,30%); font: bold 50px;")
+        self.e_start_button.setMinimumSize(QSize(0,0));
+        self.e_start_button.setMaximumSize(QSize(600,600));
+        self.e_cancel_button = QPushButton('Cancel')
+        self.e_cancel_button.clicked.connect(self.empty_cancel)
+        self.e_cancel_button.setStyleSheet("background-color: rgba(0,0,0,50%) ; color: white ; font: bold 50px;")
+        self.e_cancel_button.setMinimumSize(QSize(0,0));
+        self.e_cancel_button.setMaximumSize(QSize(600,600));
         ##### SHARED VARIABLES #####
         self.bridge = CvBridge()
         self.initialize_widgets()
@@ -160,6 +173,7 @@ class KukaViewWidget(QWidget):
         self.sub_task3 = rospy.Subscriber('/path_image', Image, self.cb_task3,  queue_size = 1)
         ##### COMMAND CENTER #####
         self.pub_init = rospy.Publisher('/command_init', String, queue_size=10)
+        self.pub_robot = rospy.Publisher('/rr/commands', String, queue_size=10)
 ################################################################
 #
 # TASK MODE
@@ -383,29 +397,34 @@ class KukaViewWidget(QWidget):
     def object_layout(self):
         #print('Setting up obj_layout ...')
         obj_layout = QVBoxLayout()
+        obj_text = QPushButton('Select Object')
+        obj_text.setStyleSheet('background-color: rgba(255,255,255,0%) ; font: bold 25px;')
+        obj_layout.addWidget(obj_text)
         self.obj_buttons = QButtonGroup()
+        #stylesheet = "background-color: rgba(0,152,217,50%); font: 20px;"
+        stylesheet = "background-color: rgba(77,0,71,50%) ; color: white; font: 20px;"
         #print('adding push button {}'.format(self.cls[0]))
         self.obj_button1 = QPushButton(self.cls[0])
         self.obj_button1.setCheckable(True)
-        self.obj_button1.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        self.obj_button1.setStyleSheet(stylesheet)
         self.obj_buttons.addButton(self.obj_button1, 1)
         obj_layout.addWidget(self.obj_button1)
         #print('adding push button {}'.format(self.cls[1]))
         self.obj_button2 = QPushButton(self.cls[1])
         self.obj_button2.setCheckable(True)
-        self.obj_button2.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        self.obj_button2.setStyleSheet(stylesheet)
         self.obj_buttons.addButton(self.obj_button2, 2)
         obj_layout.addWidget(self.obj_button2)
         #print('adding push button {}'.format(self.cls[2]))
         self.obj_button3 = QPushButton(self.cls[2])
         self.obj_button3.setCheckable(True)
-        self.obj_button3.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        self.obj_button3.setStyleSheet(stylesheet)
         self.obj_buttons.addButton(self.obj_button3, 3)
         obj_layout.addWidget(self.obj_button3)
         #print('adding push button {}'.format(self.cls[3]))
         self.obj_button4 = QPushButton(self.cls[3])
         self.obj_button4.setCheckable(True)
-        self.obj_button4.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        self.obj_button4.setStyleSheet(stylesheet)
         self.obj_buttons.addButton(self.obj_button4, 4)
         obj_layout.addWidget(self.obj_button4)
         self.obj_buttons.buttonClicked[int].connect(self.set_object_id)
@@ -422,22 +441,22 @@ class KukaViewWidget(QWidget):
 
         line_button = QPushButton('Line')
         line_button.clicked.connect(self.task_line)
-        line_button.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        line_button.setStyleSheet("background-color: rgba(0,128,255,50%); font: 20px;")
 
         area_button = QPushButton('Region')
         area_button.clicked.connect(self.task_area)
-        area_button.setStyleSheet("background-color: rgba(255,255,0,50%)")
+        area_button.setStyleSheet("background-color: rgba(255,255,0,50%); font: 20px;")
 
         clear_button = QPushButton('Clear')
         clear_button.clicked.connect(self.task_clear)
-        clear_button.setStyleSheet("background-color: rgb(255,0,0,50%)")
+        clear_button.setStyleSheet("background-color: rgb(255,0,0,50%); font: 20px;")
 
         self.t_send_button.clicked.connect(self.task_send)
-        self.t_send_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+        self.t_send_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20px;")
 
         execute_button = QPushButton('Execute')
         execute_button.clicked.connect(self.task_execute)
-        execute_button.setStyleSheet("background-color: rgba(0,0,0,50%) ; color: white")
+        execute_button.setStyleSheet("background-color: rgba(0,0,0,50%) ; color: white; font: 20px;")
 
         image_layout.addWidget(self.t_video_1)
         crop_image_layout.addWidget(self.t_video_2)
@@ -503,8 +522,9 @@ class KukaViewWidget(QWidget):
         self.d_video_2.setPixmap(pixmap)
         if not self.currently_detecting:
             # currently detect, set button to pause if pressed
+            self.currently_detecting = True
             self.d_detecting_button.setText("Pause Detecting")
-            self.d_detecting_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+            self.d_detecting_button.setStyleSheet(self.pause_det_style)
 
     def show_det_before(self, data):
         pixmap = self.convert_img(data)
@@ -530,22 +550,22 @@ class KukaViewWidget(QWidget):
             # publish a ROS message to stop the detection code
             self.pub_detect.publish('stop')
             self.d_detecting_button.setText("Start Detecting")
-            self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+            self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20px;")
         else:
             self.currently_detecting = True
             # publish a ROS message to start the detection code, message is the name of the class
             self.pub_detect.publish('start')
             # currently detect, set button to pause if pressed
             self.d_detecting_button.setText("Pause Detecting")
-            self.d_detecting_button.setStyleSheet("background-color: rgba(255,0,0,50%)")
+            self.d_detecting_button.setStyleSheet(self.pause_det_style)
 
     def detect_stop(self):
         """ conclude the detection stage """
-        if self.d_stop_button.text() == 'DONE':
+        if self.d_stop_button.text() == 'Done':
             self.d_stop_button.setText('Confirm?')
         elif self.d_stop_button.text() == 'Confirm?':
             self.pub_detect.publish('end')
-            self.d_stop_button.setText('DONE')
+            self.d_stop_button.setText('Done')
             self.update_mode('task')
 
 #################### DETECT LAYOUT ####################
@@ -558,10 +578,10 @@ class KukaViewWidget(QWidget):
         crop_image_layout = QVBoxLayout()
 
         self.d_detecting_button.clicked.connect(self.detect_start)
-        self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+        self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20px;")
 
         self.d_stop_button.clicked.connect(self.detect_stop)
-        self.d_stop_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
+        self.d_stop_button.setStyleSheet("background-color: rgba(0,0,255,50%); color: white; font: 20px;")
 
         image_layout.addWidget(self.d_video_1)
         crop_image_layout.addWidget(self.d_video_2)
@@ -659,8 +679,9 @@ class KukaViewWidget(QWidget):
         progress = data.data
         print("feature progress is ", progress)
         if progress == 'DONE':
-            self.l_done_button.setText('DONE')
+            self.l_done_button.setText('Done')
             self.update_mode('detect')
+            self.l_progressbar.reset()
         elif (int(progress) >= 0):
             self.l_progressbar.setValue(int(float(progress)*100/MAX_IMG))
 
@@ -679,14 +700,15 @@ class KukaViewWidget(QWidget):
             else:
                 self.object_name = self.l_user_input.text()
             self.currently_learning = True
-            self.l_learning_button.setText("Learning 00%")
+            #self.l_learning_button.setText("Learning 00%")
+            self.l_learning_button.setText("Learning ...")
             # publish a ROS message to start the learning code, message is the name of the class
             self.pub_learn.publish("start:" + self.object_name + ":" + str(self.num_objects))
             self.num_objects += 1
 
     def learn_stop(self):
         """ conclude the learning stage """
-        if self.l_done_button.text() == 'DONE':
+        if self.l_done_button.text() == 'Done':
             self.l_done_button.setText('Confirm?')
         elif self.l_done_button.text() == 'Confirm?':
             self.pub_learn.publish('end')
@@ -712,14 +734,14 @@ class KukaViewWidget(QWidget):
         crop_image_layout = QVBoxLayout()
 
         self.l_learning_button.clicked.connect(self.learn_start)
-        self.l_learning_button.setStyleSheet("background-color: rgba(0,255,0,50%)")
+        self.l_learning_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20px;")
 
         self.l_done_button.clicked.connect(self.learn_stop)
-        self.l_done_button.setStyleSheet("background-color: rgba(0,0,255,50%)")
+        self.l_done_button.setStyleSheet("background-color: rgba(0,0,255,50%); color: white; font: 20px")
 
-        delete_button = QPushButton('DELETE')
+        delete_button = QPushButton('Delete')
         delete_button.clicked.connect(self.learn_delete_object)
-        delete_button.setStyleSheet("background-color: rgba(0,255,255,50%)")
+        delete_button.setStyleSheet("background-color: rgba(0,255,255,50%); font: 20px;")
 
         self.l_user_input.setPlaceholderText('Please enter the name of object')
         self.l_user_input.setFocus()
@@ -739,6 +761,31 @@ class KukaViewWidget(QWidget):
         layout.addWidget(self.l_progressbar)
         return layout
 
+    def empty_layout(self):
+        """ layout for the default view, used for default task execution """
+        self.setWindowTitle('Demo')
+        layout = QHBoxLayout()
+        layout.addWidget(self.e_start_button)
+        layout.addWidget(self.e_cancel_button)
+        self.e_cancel_button.hide()
+        return layout
+
+    def empty_start(self):
+        if self.e_start_button.text() == 'Start DEMO':
+            self.e_start_button.setText('Confirm?')
+            self.e_cancel_button.show()
+        elif self.e_start_button.text() == 'Confirm?':
+            msg = "initial_motion:1:roller"
+            #self.pub_robot.publish("initial_motion:1:roller")
+            self.pub_robot.publish(msg)
+            #print(repr(msg))
+            self.e_start_button.setText('Start DEMO')
+            self.e_cancel_button.hide()
+
+    def empty_cancel(self):
+        self.e_start_button.setText('Start DEMO')
+        self.e_cancel_button.hide()
+
     def initialize_widgets(self):
         self.stacked_widget = QStackedWidget()
         self.learn_widget = QWidget()
@@ -749,10 +796,12 @@ class KukaViewWidget(QWidget):
         self.l_layout = self.learn_layout()
         self.d_layout = self.detect_layout()
         self.t_layout = self.task_layout()
+        self.e_layout = self.empty_layout()
 
         self.learn_widget.setLayout(self.l_layout)
         self.detect_widget.setLayout(self.d_layout)
         self.task_widget.setLayout(self.t_layout)
+        self.empty_widget.setLayout(self.e_layout)
 
         self.stacked_widget.addWidget(self.empty_widget)
         self.stacked_widget.addWidget(self.learn_widget)
@@ -769,25 +818,50 @@ class KukaViewWidget(QWidget):
         else:
             print('activating error')
 
+    def prepare_empty_widget(self):
+        self.pub_learn.publish('kill')
+        self.pub_detect.publish('kill')
+        self.pub_init.publish(self.mode)
+
+    def prepare_learn_widget(self):
+        self.pub_detect.publish('kill')
+        self.l_progressbar.reset() # in case it's not reset for some reason
+        self.pub_init.publish(self.mode)
+
+    def prepare_detect_widget(self):
+        self.pub_learn.publish('kill')
+        self.currently_detecting = False
+        self.d_detecting_button.setText("Start Detecting")
+        self.d_detecting_button.setStyleSheet("background-color: rgba(0,255,0,50%); font: 20pt;")
+        if self.prev_mode != 'task':
+            self.pub_init.publish(self.mode)
+
+    def prepare_task_widget(self):
+        self.obj_list_ready = False
+        if (self.prev_mode == 'learn') or (self.prev_mode == 'empty'):
+            self.pub_init.publish('detect') # publish it just in case of switching from learning to task
+        self.pub_learn.publish('kill')
+
     def change_widget(self):
         if self.mode == 'learn':
-            self.pub_detect.publish('kill')
+            self.prepare_learn_widget()
             self.activate_widget(1)
         elif self.mode == 'detect':
-            self.pub_learn.publish('kill')
+            self.prepare_detect_widget()
             self.activate_widget(2)
         elif self.mode == 'task':
-            self.obj_list_ready = False
-            self.pub_learn.publish('kill')
+            self.prepare_task_widget()
             self.activate_widget(3)
         elif self.mode == 'empty':
+            self.prepare_empty_widget()
             self.activate_widget(0)
         else:
             print('change widget error')
 
     def update_mode(self, mode):
+        self.prev_mode = self.mode
         self.mode = mode
-        self.pub_init.publish(self.mode)
+        #self.pub_init.publish(self.mode)
         print('CHANGED TO: {}'.format(self.mode))
         self.change_widget()
 
